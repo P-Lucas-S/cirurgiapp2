@@ -1,0 +1,39 @@
+name: cirurgiapp
+description: "Sistema de gestão de cirurgias hospitalares com controle de acesso por cargo"
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.3 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase Core
+  firebase_core: ^3.12.1
+  cloud_firestore: ^5.6.5
+  firebase_auth: ^5.5.1
+
+  # Utilidades essenciais
+  logger: ^2.0.2
+  intl: ^0.18.1
+  pdf: ^3.10.2
+  printing: ^5.11.1
+
+  # UI Básica
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1 # Versão mais estável
+  brasil_fields: ^1.14.1
+  email_validator: ^2.1.17
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo/logo.png
