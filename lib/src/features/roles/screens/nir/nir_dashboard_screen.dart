@@ -28,7 +28,7 @@ class NIRDashboardScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('surgeries')
-            .orderBy('dataCirurgia', descending: true)
+            .orderBy('dateTime', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {

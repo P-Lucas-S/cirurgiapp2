@@ -1,6 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 
-import 'package:cirurgiapp/src/components/style_constants/tipography.dart';
+import 'package:cirurgiapp/src/components/style_constants/typography.dart';
 import 'package:flutter/material.dart';
 
 SnackBar ErrorMessage({required String error}) {

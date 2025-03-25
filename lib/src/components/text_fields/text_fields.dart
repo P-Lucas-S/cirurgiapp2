@@ -3,7 +3,7 @@
 import 'package:brasil_fields/brasil_fields.dart';
 import 'package:cirurgiapp/src/components/style_constants/colors.dart';
 import 'package:cirurgiapp/src/components/style_constants/text_field_style.dart';
-import 'package:cirurgiapp/src/components/style_constants/tipography.dart';
+import 'package:cirurgiapp/src/components/style_constants/typography.dart';
 import 'package:email_validator/email_validator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
