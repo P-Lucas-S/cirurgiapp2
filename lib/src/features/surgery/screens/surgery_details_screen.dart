@@ -3,6 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:cirurgiapp/src/core/constants/app_colors.dart';
 import 'package:cirurgiapp/src/services/surgery_service.dart';
+import 'package:provider/provider.dart';
+import 'package:cirurgiapp/src/core/models/user_model.dart';
+import 'package:cirurgiapp/src/core/extensions/string_extensions.dart';
 
 class SurgeryDetailsScreen extends StatelessWidget {
   final String surgeryId;
@@ -48,20 +51,58 @@ class SurgeryDetailsScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildDetailItem('Procedimento:', surgeryData['procedure']),
-        _buildDetailItem('Cirurgião:', surgeryData['surgeon']),
+        _buildReferenceItem(
+          label: 'Procedimento:',
+          collection: 'procedures',
+          documentId: surgeryData['procedure'],
+        ),
+        _buildReferenceItem(
+          label: 'Cirurgião:',
+          collection: 'surgeons',
+          documentId: surgeryData['surgeon'],
+        ),
+        _buildReferenceItem(
+          label: 'Anestesista:',
+          collection: 'anesthesiologists',
+          documentId: surgeryData['anesthesiologist'],
+        ),
         _buildDetailItem('Data:', _formattedDate),
       ],
     );
   }
 
-  Widget _buildDetailItem(String label, String? value) {
+  Widget _buildReferenceItem({
+    required String label,
+    required String collection,
+    required String? documentId,
+  }) {
+    return FutureBuilder<DocumentSnapshot>(
+      future: documentId != null
+          ? FirebaseFirestore.instance
+              .collection(collection)
+              .doc(documentId)
+              .get()
+          : null,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildDetailItem(label, 'Carregando...');
+        }
+
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        final value =
+            data?['name']?.toString().capitalize() ?? 'Não especificado';
+        return _buildDetailItem(label, value);
+      },
+    );
+  }
+
+  Widget _buildDetailItem(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Text('$label ', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(child: Text(value ?? 'Não informado')),
+          Expanded(child: Text(value)),
         ],
       ),
     );
@@ -195,7 +236,7 @@ class SurgeryDetailsScreen extends StatelessWidget {
   }
 
   bool _isNIRUser(BuildContext context) {
-    // Implementar lógica de verificação do usuário NIR
-    return true;
+    final user = Provider.of<HospitalUser?>(context);
+    return user?.roles.contains('NIR') ?? false;
   }
 }

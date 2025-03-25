@@ -11,6 +11,8 @@ class SurgeryService {
   final Logger _logger = Logger();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  /// Cria uma nova cirurgia no Firestore usando os dados fornecidos.
+  /// O campo 'canceledBy' foi removido conforme as alterações solicitadas.
   Future<void> createSurgery(Map<String, dynamic> surgeryData) async {
     try {
       await _firestore.collection('surgeries').add({
@@ -25,7 +27,6 @@ class SurgeryService {
         },
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-        'canceledBy': _auth.currentUser!.uid, // Agora _auth está definido
       });
     } catch (e) {
       _logger.e('Erro ao criar cirurgia: $e');
@@ -33,6 +34,7 @@ class SurgeryService {
     }
   }
 
+  /// Atualiza a confirmação para um determinado papel (role) na cirurgia.
   Future<void> confirmRequirement(String surgeryId, String role) async {
     try {
       await _firestore.collection('surgeries').doc(surgeryId).update({
@@ -45,6 +47,7 @@ class SurgeryService {
     }
   }
 
+  /// Cancela a cirurgia, atualizando seu status para 'negada'.
   Future<void> cancelSurgery(String surgeryId) async {
     try {
       await _firestore.collection('surgeries').doc(surgeryId).update({
@@ -57,6 +60,7 @@ class SurgeryService {
     }
   }
 
+  /// Gera um relatório diário em PDF com as cirurgias do dia.
   Future<void> generateDailyReport() async {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);

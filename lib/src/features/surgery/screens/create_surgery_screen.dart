@@ -14,35 +14,74 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   // Controladores de texto para os campos
   final TextEditingController _patientController = TextEditingController();
   final TextEditingController _procedureController = TextEditingController();
+  final TextEditingController _surgeonNameController = TextEditingController();
   final TextEditingController _anesthesiologistController =
       TextEditingController();
   final TextEditingController _bloodProductController = TextEditingController();
+  final TextEditingController _opmeController = TextEditingController();
 
   // Serviços
   final SurgeryService _surgeryService = SurgeryService();
   final MedicalDataService _medicalService = MedicalDataService();
 
-  // Variáveis para seleção de dados
-  String _selectedSurgeon = '';
-  String _selectedOpme = '';
+  // Variáveis para seleção (armazenando os IDs dos documentos)
+  String? _selectedSurgeonId;
+  String? _selectedProcedureId;
+  String? _selectedOpmeId;
+  String?
+      _selectedAnesthesiologistId; // Caso venha a ser selecionado via diálogo
   DateTime _selectedDate = DateTime.now();
   bool _needsICU = false;
-  bool _residentConfirmation = false; // Se for necessário para outro fluxo
+  bool _residentConfirmation = false; // Se necessário para outro fluxo
 
   bool _isLoading = false;
 
-  // Método para selecionar procedimento via diálogo
+  // Seleciona um procedimento e atualiza o campo com o nome correspondente
   Future<void> _selectProcedure() async {
-    final selected = await _medicalService.showSelectionDialog(
+    final selectedId = await _medicalService.showSingleSelectionDialog(
       context: context,
       collection: 'procedures',
     );
-    if (selected.isNotEmpty) {
-      setState(() => _procedureController.text = selected.first);
+    if (selectedId != null) {
+      final name = await _medicalService.getItemName('procedures', selectedId);
+      setState(() {
+        _selectedProcedureId = selectedId;
+        _procedureController.text = name;
+      });
     }
   }
 
-  // Método para selecionar data (DatePicker)
+  // Seleciona um cirurgião e atualiza o campo com o nome correspondente
+  Future<void> _selectSurgeon() async {
+    final selectedId = await _medicalService.showSingleSelectionDialog(
+      context: context,
+      collection: 'surgeons',
+    );
+    if (selectedId != null) {
+      final name = await _medicalService.getItemName('surgeons', selectedId);
+      setState(() {
+        _selectedSurgeonId = selectedId;
+        _surgeonNameController.text = name;
+      });
+    }
+  }
+
+  // Seleciona OPMe e atualiza o campo (opcional: similar para anestesista)
+  Future<void> _selectOpme() async {
+    final selectedId = await _medicalService.showSingleSelectionDialog(
+      context: context,
+      collection: 'opme',
+    );
+    if (selectedId != null) {
+      final name = await _medicalService.getItemName('opme', selectedId);
+      setState(() {
+        _selectedOpmeId = selectedId;
+        _opmeController.text = name;
+      });
+    }
+  }
+
+  // Seleciona data da cirurgia via DatePicker
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -57,33 +96,12 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
-  // Simula a seleção de um cirurgião
-  Future<void> _selectSurgeon() async {
-    final selected = await _medicalService.showSelectionDialog(
-      context: context,
-      collection: 'surgeons',
-    );
-    if (selected.isNotEmpty) {
-      setState(() => _selectedSurgeon = selected.first);
-    }
-  }
-
-  // Simula a seleção de OPMe
-  Future<void> _selectOpme() async {
-    final selected = await _medicalService.showSelectionDialog(
-      context: context,
-      collection: 'opme',
-    );
-    if (selected.isNotEmpty) {
-      setState(() => _selectedOpme = selected.first);
-    }
-  }
-
+  // Submissão dos dados para criar a cirurgia
   Future<void> _submit() async {
     if (_patientController.text.isEmpty ||
-        _procedureController.text.isEmpty ||
-        _selectedSurgeon.isEmpty) {
-      _showSnackBar('Preencha todos os campos obrigatórios');
+        _selectedProcedureId == null ||
+        _selectedSurgeonId == null) {
+      _showSnackBar('Selecione cirurgião e procedimento');
       return;
     }
 
@@ -91,10 +109,10 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
 
     final surgeryData = {
       'patientName': _patientController.text.trim(),
-      'procedure': _procedureController.text.trim(),
-      'surgeon': _selectedSurgeon,
-      'anesthesiologist': _anesthesiologistController.text.trim(),
-      'opme': _selectedOpme,
+      'procedure': _selectedProcedureId, // Armazena o ID do procedimento
+      'surgeon': _selectedSurgeonId, // Armazena o ID do cirurgião
+      'anesthesiologist': _selectedAnesthesiologistId,
+      'opme': _selectedOpmeId,
       'bloodProducts': _bloodProductController.text.trim(),
       'needsICU': _needsICU,
       'dateTime': Timestamp.fromDate(_selectedDate),
@@ -114,6 +132,7 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
+  // Exibe um SnackBar com a mensagem informada
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
@@ -159,15 +178,17 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ],
               ),
               const SizedBox(height: 15),
-              // Seleção de cirurgião
+              // Seleção de cirurgião (campo não editável com botão de seleção)
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      _selectedSurgeon.isEmpty
-                          ? 'Selecione o cirurgião'
-                          : 'Cirurgião: $_selectedSurgeon',
-                      style: const TextStyle(fontSize: 16),
+                    child: TextFormField(
+                      controller: _surgeonNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Cirurgião',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      readOnly: true,
                     ),
                   ),
                   IconButton(
@@ -177,7 +198,7 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ],
               ),
               const SizedBox(height: 15),
-              // Anestesista
+              // Anestesista (campo editável ou seleção similar, se necessário)
               TextFormField(
                 controller: _anesthesiologistController,
                 decoration: const InputDecoration(
@@ -186,15 +207,17 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ),
               ),
               const SizedBox(height: 15),
-              // Seleção de OPMe
+              // Seleção de OPMe (campo não editável com botão de seleção)
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      _selectedOpme.isEmpty
-                          ? 'Selecione OPMe'
-                          : 'OPMe: $_selectedOpme',
-                      style: const TextStyle(fontSize: 16),
+                    child: TextFormField(
+                      controller: _opmeController,
+                      decoration: const InputDecoration(
+                        labelText: 'OPMe',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      readOnly: true,
                     ),
                   ),
                   IconButton(

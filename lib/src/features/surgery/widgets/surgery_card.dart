@@ -80,8 +80,42 @@ class SurgeryCard extends StatelessWidget {
       children: [
         _buildDetailItem('Data:', _formattedDateTime),
         _buildDetailItem('Status:', _formattedStatus),
-        _buildDetailItem('Procedimento:', _formattedProcedure),
+        _buildReferenceItem(
+          label: 'Procedimento:',
+          collection: 'procedures',
+          documentId: surgery['procedure'],
+        ),
+        _buildReferenceItem(
+          label: 'Cirurgião:',
+          collection: 'surgeons',
+          documentId: surgery['surgeon'],
+        ),
       ],
+    );
+  }
+
+  Widget _buildReferenceItem({
+    required String label,
+    required String collection,
+    required String? documentId,
+  }) {
+    return FutureBuilder<DocumentSnapshot>(
+      future: documentId != null
+          ? FirebaseFirestore.instance
+              .collection(collection)
+              .doc(documentId)
+              .get()
+          : null,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildDetailItem(label, 'Carregando...');
+        }
+
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        final value =
+            data?['name']?.toString().capitalize() ?? 'Não especificado';
+        return _buildDetailItem(label, value);
+      },
     );
   }
 
@@ -193,9 +227,6 @@ class SurgeryCard extends StatelessWidget {
   }
 
   String get _formattedStatus => _status.capitalize();
-
-  String get _formattedProcedure =>
-      surgery['procedure']?.toString().capitalize() ?? 'Não informado';
 
   String get _status {
     final status = surgery['status'];
