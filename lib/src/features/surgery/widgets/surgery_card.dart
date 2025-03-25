@@ -141,15 +141,28 @@ class SurgeryCard extends StatelessWidget {
           ),
           TextButton(
             onPressed: () async {
-              await SurgeryService().cancelSurgery(surgeryId);
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(
-                    content: Text('Cirurgia cancelada com sucesso'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
+              try {
+                await SurgeryService().cancelSurgery(surgeryId);
+
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cirurgia cancelada com sucesso'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: Text('Erro ao cancelar: ${e.toString()}'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Sim', style: TextStyle(color: AppColors.error)),
