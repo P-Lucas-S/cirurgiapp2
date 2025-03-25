@@ -5,6 +5,8 @@ import 'package:cirurgiapp/src/core/constants/app_colors.dart';
 import 'package:cirurgiapp/src/core/extensions/string_extensions.dart';
 import 'package:cirurgiapp/src/features/surgery/screens/surgery_details_screen.dart';
 import 'package:cirurgiapp/src/services/surgery_service.dart';
+import 'package:provider/provider.dart';
+import 'package:cirurgiapp/src/core/models/user_model.dart';
 
 class SurgeryCard extends StatelessWidget {
   final String surgeryId;
@@ -110,6 +112,12 @@ class SurgeryCard extends StatelessWidget {
   }
 
   Widget _buildCancelButton(BuildContext context) {
+    final user = Provider.of<HospitalUser?>(context);
+
+    if (user == null || !user.roles.contains('NIR')) {
+      return const SizedBox.shrink();
+    }
+
     return IconButton(
       icon: const Icon(Icons.cancel, color: AppColors.error),
       onPressed: () => _confirmCancellation(context),

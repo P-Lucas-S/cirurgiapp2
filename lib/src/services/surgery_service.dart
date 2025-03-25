@@ -4,12 +4,13 @@ import 'package:pdf/widgets.dart' as pw; // Para criar o documento PDF
 import 'package:pdf/pdf.dart' as pdfLib; // Para a classe PdfPageFormat
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SurgeryService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final Logger _logger = Logger();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// Cria uma nova cirurgia no Firestore usando os dados fornecidos.
   Future<void> createSurgery(Map<String, dynamic> surgeryData) async {
     try {
       await _firestore.collection('surgeries').add({
@@ -24,6 +25,7 @@ class SurgeryService {
         },
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        'canceledBy': _auth.currentUser!.uid, // Agora _auth está definido
       });
     } catch (e) {
       _logger.e('Erro ao criar cirurgia: $e');
@@ -31,7 +33,6 @@ class SurgeryService {
     }
   }
 
-  /// Atualiza a confirmação para um determinado papel (role) na cirurgia.
   Future<void> confirmRequirement(String surgeryId, String role) async {
     try {
       await _firestore.collection('surgeries').doc(surgeryId).update({
@@ -56,8 +57,6 @@ class SurgeryService {
     }
   }
 
-  /// Gera um relatório diário (exemplo de implementação).
-  // No SurgeryService, atualize o generateDailyReport:
   Future<void> generateDailyReport() async {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
