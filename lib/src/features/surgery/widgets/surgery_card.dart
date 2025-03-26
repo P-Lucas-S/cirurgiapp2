@@ -90,6 +90,17 @@ class SurgeryCard extends StatelessWidget {
           collection: 'surgeons',
           reference: surgery['surgeon'],
         ),
+        // Novas referências adicionadas
+        _buildReferenceItem(
+          label: 'Anestesista:',
+          collection: 'anesthesiologists',
+          reference: surgery['anesthesiologist'],
+        ),
+        _buildReferenceItem(
+          label: 'Produto Sanguíneo:',
+          collection: 'blood_products',
+          reference: surgery['bloodProducts'],
+        ),
       ],
     );
   }
@@ -242,7 +253,11 @@ class SurgeryCard extends StatelessWidget {
   DocumentReference? _getDocumentReference(dynamic value) {
     if (value is DocumentReference) return value;
     if (value is String && value.isNotEmpty) {
-      return FirebaseFirestore.instance.doc(value);
+      // Verifica se o caminho possui um número par de segmentos (ex: 'collection/docId')
+      final segments = value.split('/');
+      if (segments.length.isEven) {
+        return FirebaseFirestore.instance.doc(value);
+      }
     }
     return null;
   }

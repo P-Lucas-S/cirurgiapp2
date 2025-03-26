@@ -66,6 +66,11 @@ class SurgeryDetailsScreen extends StatelessWidget {
           collection: 'anesthesiologists',
           reference: surgeryData['anesthesiologist'],
         ),
+        _buildReferenceItem(
+          label: 'Produto Sanguíneo:',
+          collection: 'blood_products',
+          reference: surgeryData['bloodProducts'],
+        ),
         _buildDetailItem('Data:', _formattedDate),
       ],
     );
@@ -242,7 +247,10 @@ class SurgeryDetailsScreen extends StatelessWidget {
   DocumentReference? _getDocumentReference(dynamic value) {
     if (value is DocumentReference) return value;
     if (value is String && value.isNotEmpty) {
-      return FirebaseFirestore.instance.doc(value);
+      final segments = value.split('/');
+      if (segments.length % 2 == 0) {
+        return FirebaseFirestore.instance.doc(value);
+      }
     }
     return null;
   }

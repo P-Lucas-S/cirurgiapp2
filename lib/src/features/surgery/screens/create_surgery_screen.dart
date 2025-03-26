@@ -22,11 +22,12 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   final SurgeryService _surgeryService = SurgeryService();
   final MedicalDataService _medicalService = MedicalDataService();
 
-  // Alterar para DocumentReference
+  // Referências atualizadas
   DocumentReference? _selectedProcedureRef;
   DocumentReference? _selectedSurgeonRef;
   DocumentReference? _selectedOpmeRef;
   DocumentReference? _selectedAnesthesiologistRef;
+  DocumentReference? _selectedBloodProductRef;
 
   DateTime _selectedDate = DateTime.now();
   bool _needsICU = false;
@@ -88,6 +89,46 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
+  // Método para selecionar anestesista
+  Future<void> _selectAnesthesiologist() async {
+    final selectedId = await _medicalService.showSingleSelectionDialog(
+      context: context,
+      collection: 'anesthesiologists',
+    );
+
+    if (selectedId != null) {
+      final docRef = FirebaseFirestore.instance
+          .collection('anesthesiologists')
+          .doc(selectedId);
+      final name = await _medicalService.getItemName(docRef);
+
+      setState(() {
+        _selectedAnesthesiologistRef = docRef;
+        _anesthesiologistController.text = name;
+      });
+    }
+  }
+
+  // Método para selecionar produto sanguíneo
+  Future<void> _selectBloodProduct() async {
+    final selectedId = await _medicalService.showSingleSelectionDialog(
+      context: context,
+      collection: 'blood_products',
+    );
+
+    if (selectedId != null) {
+      final docRef = FirebaseFirestore.instance
+          .collection('blood_products')
+          .doc(selectedId);
+      final name = await _medicalService.getItemName(docRef);
+
+      setState(() {
+        _selectedBloodProductRef = docRef;
+        _bloodProductController.text = name;
+      });
+    }
+  }
+
   // Seleciona data da cirurgia via DatePicker
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
@@ -120,7 +161,7 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       'surgeon': _selectedSurgeonRef,
       'anesthesiologist': _selectedAnesthesiologistRef,
       'opme': _selectedOpmeRef,
-      'bloodProducts': _bloodProductController.text.trim(),
+      'bloodProducts': _selectedBloodProductRef,
       'needsICU': _needsICU,
       'dateTime': Timestamp.fromDate(_selectedDate),
       'confirmations': {
@@ -204,13 +245,24 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ],
               ),
               const SizedBox(height: 15),
-              // Anestesista (campo editável ou seleção similar, se necessário)
-              TextFormField(
-                controller: _anesthesiologistController,
-                decoration: const InputDecoration(
-                  labelText: 'Anestesista',
-                  prefixIcon: Icon(Icons.medical_services_outlined),
-                ),
+              // Seleção de anestesista (campo não editável com botão de seleção)
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _anesthesiologistController,
+                      decoration: const InputDecoration(
+                        labelText: 'Anestesista',
+                        prefixIcon: Icon(Icons.medical_services_outlined),
+                      ),
+                      readOnly: true,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: _selectAnesthesiologist,
+                  ),
+                ],
               ),
               const SizedBox(height: 15),
               // Seleção de OPMe (campo não editável com botão de seleção)
@@ -233,13 +285,24 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ],
               ),
               const SizedBox(height: 15),
-              // Produtos Sanguíneos
-              TextFormField(
-                controller: _bloodProductController,
-                decoration: const InputDecoration(
-                  labelText: 'Produto Sanguíneo',
-                  prefixIcon: Icon(Icons.bloodtype),
-                ),
+              // Seleção de Produto Sanguíneo (campo não editável com botão de seleção)
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _bloodProductController,
+                      decoration: const InputDecoration(
+                        labelText: 'Produto Sanguíneo',
+                        prefixIcon: Icon(Icons.bloodtype),
+                      ),
+                      readOnly: true,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: _selectBloodProduct,
+                  ),
+                ],
               ),
               const SizedBox(height: 15),
               // Necessidade de UTI

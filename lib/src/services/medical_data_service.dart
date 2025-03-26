@@ -14,7 +14,14 @@ class MedicalDataService {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-            'Selecione ${collection == 'procedures' ? 'um Procedimento' : 'um Cirurgião'}'),
+          switch (collection) {
+            'procedures' => 'Selecione um Procedimento',
+            'surgeons' => 'Selecione um Cirurgião',
+            'anesthesiologists' => 'Selecione um Anestesista',
+            'blood_products' => 'Selecione um Produto Sanguíneo',
+            _ => 'Selecione um Item',
+          },
+        ),
         content: SizedBox(
           width: double.maxFinite,
           child: StreamBuilder<QuerySnapshot>(
