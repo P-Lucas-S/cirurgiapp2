@@ -4,23 +4,25 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cirurgiapp/src/core/constants/app_colors.dart';
 import 'package:cirurgiapp/src/features/auth/screens/login_screen.dart';
 import 'firebase_options.dart';
+import 'package:cirurgiapp/src/firestore_init/firestore_initializer.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await _initializeFirebase();
-
-  runApp(const Cirurgiapp());
-}
-
-Future<void> _initializeFirebase() async {
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Inicializa dados padrão do Firestore
+    await FirestoreInitializer().initializeProcedures();
   } catch (error) {
-    throw Exception('Falha na inicialização do Firebase: $error');
+    // Caso ocorra um erro na inicialização, ele é logado no console.
+    print('Erro na inicialização do Firebase/Firestore: $error');
+    // Aqui você pode também exibir uma tela de erro, se preferir.
   }
+
+  runApp(const Cirurgiapp());
 }
 
 class Cirurgiapp extends StatelessWidget {

@@ -2,48 +2,75 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'procedures_list.dart';
 
 class FirestoreInitializer {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+  static const _maxBatchSize = 500; // Tamanho máximo permitido pelo Firestore
+
+  FirestoreInitializer({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   Future<void> initializeProcedures() async {
     try {
-      // Verifica procedimentos existentes
-      final existingProcedures = await _getExistingProcedures();
+      final existingNames = await _fetchExistingProcedureNames();
+      final operations = _prepareBatchOperations(existingNames);
 
-      // Prepara batch de escrita
-      WriteBatch batch = _firestore.batch();
-      int addedCount = 0;
-
-      for (int i = 0; i < surgicalProcedures.length; i++) {
-        final name = surgicalProcedures[i];
-        if (!existingProcedures.contains(name.toLowerCase())) {
-          final ref = _firestore.collection('procedures').doc();
-          batch.set(ref, {
-            'name': name,
-            'createdAt': FieldValue.serverTimestamp(),
-            'order': i + 1,
-            'active': true
-          });
-          addedCount++;
-        }
+      if (operations.isEmpty) {
+        _log('ℹ️ Nenhum novo procedimento para adicionar');
+        return;
       }
 
-      // Executa batch se houver alterações
-      if (addedCount > 0) {
-        await batch.commit();
-        print('✅ $addedCount novos procedimentos adicionados!');
-      } else {
-        print('ℹ️ Nenhum novo procedimento para adicionar');
-      }
+      await _executeBatchOperations(operations);
+      _log('✅ ${operations.length} novos procedimentos adicionados!');
     } catch (e) {
-      print('❌ Erro: ${e.toString()}');
+      _log('❌ Erro crítico: ${e.toString()}');
       rethrow;
     }
   }
 
-  Future<Set<String>> _getExistingProcedures() async {
+  Future<Set<String>> _fetchExistingProcedureNames() async {
     final snapshot = await _firestore.collection('procedures').get();
     return snapshot.docs
-        .map((doc) => doc['name'].toString().toLowerCase())
+        .map((doc) => doc.get('name').toString().toLowerCase())
         .toSet();
+  }
+
+  List<WriteBatch> _prepareBatchOperations(Set<String> existingNames) {
+    final batches = <WriteBatch>[];
+    WriteBatch currentBatch = _firestore.batch();
+    int operationCount = 0;
+
+    for (final (index, name) in surgicalProcedures.indexed) {
+      if (existingNames.contains(name.toLowerCase())) continue;
+
+      final docRef = _firestore.collection('procedures').doc();
+      currentBatch.set(docRef, {
+        'name': name,
+        'order': index + 1,
+        'active': true,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      operationCount++;
+      if (operationCount % _maxBatchSize == 0) {
+        batches.add(currentBatch);
+        currentBatch = _firestore.batch();
+      }
+    }
+
+    if (operationCount % _maxBatchSize != 0) {
+      batches.add(currentBatch);
+    }
+
+    return batches;
+  }
+
+  Future<void> _executeBatchOperations(List<WriteBatch> batches) async {
+    for (final batch in batches) {
+      await batch.commit();
+    }
+  }
+
+  void _log(String message) {
+    // Pode ser substituído por um logger profissional em produção
+    print('[FirestoreInitializer] $message');
   }
 }

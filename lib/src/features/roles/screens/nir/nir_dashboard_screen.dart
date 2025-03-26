@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cirurgiapp/src/core/constants/app_colors.dart'; // Importe suas cores
+import 'package:cirurgiapp/src/core/constants/app_colors.dart';
 import 'package:cirurgiapp/src/services/surgery_service.dart';
 import 'package:cirurgiapp/src/features/surgery/screens/create_surgery_screen.dart';
 import 'package:cirurgiapp/src/features/surgery/widgets/surgery_card.dart';
@@ -32,75 +32,104 @@ class NIRDashboardScreen extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const Center(child: Text('Erro ao carregar dados'));
+            return _buildErrorWidget('Erro ao carregar cirurgias');
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
+            return _buildLoadingIndicator();
           }
 
           final surgeries = snapshot.data!.docs;
-
-          if (surgeries.isEmpty) {
-            return Center(
-              child: Text(
-                'Nenhuma cirurgia agendada',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: AppColors.onSurface,
-                ),
-              ),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemCount: surgeries.length,
-            itemBuilder: (context, index) {
-              final doc = surgeries[index];
-              try {
-                final surgery = doc.data() as Map<String, dynamic>;
-                return SurgeryCard(
-                  surgery: surgery,
-                  surgeryId: doc.id,
-                  canCancel: true,
-                );
-              } catch (e) {
-                return _buildErrorCard(
-                    'Formato de dados inválido na cirurgia ${doc.id}');
-              }
-            },
-          );
+          return _buildSurgeriesList(surgeries);
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
-        child: const Icon(Icons.add),
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const CreateSurgeryScreen(),
-          ),
+      floatingActionButton: _buildAddSurgeryButton(context),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return Center(
+      child: CircularProgressIndicator(color: AppColors.primary),
+    );
+  }
+
+  Widget _buildErrorWidget(String message) {
+    return Center(
+      child: Text(
+        message,
+        style: TextStyle(fontSize: 18, color: AppColors.onSurface),
+      ),
+    );
+  }
+
+  Widget _buildSurgeriesList(List<QueryDocumentSnapshot> surgeries) {
+    if (surgeries.isEmpty) {
+      return _buildErrorWidget('Nenhuma cirurgia agendada');
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemCount: surgeries.length,
+      itemBuilder: (context, index) {
+        final doc = surgeries[index];
+        try {
+          final surgery = doc.data() as Map<String, dynamic>;
+
+          return SurgeryCard(
+            surgery: {
+              ...surgery,
+              'procedure': _convertToReference(surgery['procedure'])?.id ?? '',
+              'surgeon': _convertToReference(surgery['surgeon'])?.id ?? '',
+            },
+            surgeryId: doc.id,
+            canCancel: true,
+          );
+        } catch (e) {
+          return _buildErrorCard('Formato inválido na cirurgia ${doc.id}');
+        }
+      },
+    );
+  }
+
+  DocumentReference? _convertToReference(dynamic value) {
+    if (value is DocumentReference) return value;
+    if (value is String) return FirebaseFirestore.instance.doc(value);
+
+    if (value is Map && value.containsKey('path')) {
+      return FirebaseFirestore.instance.doc(value['path']);
+    }
+
+    return null;
+  }
+
+  Widget _buildErrorCard(String message) {
+    return Card(
+      color: AppColors.error,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(Icons.error, color: AppColors.onPrimary),
+            const SizedBox(width: 8),
+            Flexible(child: Text(message)),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildErrorCard(String message) => Card(
-        color: AppColors.error,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Icon(Icons.error, color: AppColors.onPrimary),
-              const SizedBox(width: 8),
-              Flexible(child: Text(message)),
-            ],
-          ),
+  Widget _buildAddSurgeryButton(BuildContext context) {
+    return FloatingActionButton(
+      backgroundColor: AppColors.primary,
+      foregroundColor: AppColors.onPrimary,
+      child: const Icon(Icons.add),
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const CreateSurgeryScreen(),
         ),
-      );
+      ),
+    );
+  }
 }

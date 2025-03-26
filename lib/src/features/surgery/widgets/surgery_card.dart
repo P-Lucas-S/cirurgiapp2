@@ -83,12 +83,12 @@ class SurgeryCard extends StatelessWidget {
         _buildReferenceItem(
           label: 'Procedimento:',
           collection: 'procedures',
-          documentId: surgery['procedure'],
+          documentId: surgery['procedure']?.toString() ?? '',
         ),
         _buildReferenceItem(
           label: 'Cirurgião:',
           collection: 'surgeons',
-          documentId: surgery['surgeon'],
+          documentId: surgery['surgeon']?.toString() ?? '',
         ),
       ],
     );
@@ -97,15 +97,15 @@ class SurgeryCard extends StatelessWidget {
   Widget _buildReferenceItem({
     required String label,
     required String collection,
-    required String? documentId,
+    required String documentId,
   }) {
+    if (documentId.isEmpty) return _buildDetailItem(label, 'Não especificado');
+
     return FutureBuilder<DocumentSnapshot>(
-      future: documentId != null
-          ? FirebaseFirestore.instance
-              .collection(collection)
-              .doc(documentId)
-              .get()
-          : null,
+      future: FirebaseFirestore.instance
+          .collection(collection)
+          .doc(documentId)
+          .get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildDetailItem(label, 'Carregando...');
@@ -113,7 +113,7 @@ class SurgeryCard extends StatelessWidget {
 
         final data = snapshot.data?.data() as Map<String, dynamic>?;
         final value =
-            data?['name']?.toString().capitalize() ?? 'Não especificado';
+            data?['name']?.toString().capitalize() ?? 'Não encontrado';
         return _buildDetailItem(label, value);
       },
     );
@@ -147,10 +147,8 @@ class SurgeryCard extends StatelessWidget {
 
   Widget _buildCancelButton(BuildContext context) {
     final user = Provider.of<HospitalUser?>(context);
-
-    if (user == null || !user.roles.contains('NIR')) {
+    if (user == null || !user.roles.contains('NIR'))
       return const SizedBox.shrink();
-    }
 
     return IconButton(
       icon: const Icon(Icons.cancel, color: AppColors.error),
@@ -182,36 +180,36 @@ class SurgeryCard extends StatelessWidget {
             child: const Text('Não'),
           ),
           TextButton(
-            onPressed: () async {
-              try {
-                await SurgeryService().cancelSurgery(surgeryId);
-
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text('Cirurgia cancelada com sucesso'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(
-                      content: Text('Erro ao cancelar: ${e.toString()}'),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                }
-              }
-            },
+            onPressed: () async => _handleCancellation(ctx),
             child: const Text('Sim', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _handleCancellation(BuildContext dialogContext) async {
+    try {
+      await SurgeryService().cancelSurgery(surgeryId);
+      if (!dialogContext.mounted) return;
+
+      Navigator.pop(dialogContext);
+      ScaffoldMessenger.of(dialogContext).showSnackBar(
+        const SnackBar(
+          content: Text('Cirurgia cancelada com sucesso'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!dialogContext.mounted) return;
+
+      ScaffoldMessenger.of(dialogContext).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao cancelar: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   String get _formattedDateTime {
@@ -228,11 +226,8 @@ class SurgeryCard extends StatelessWidget {
 
   String get _formattedStatus => _status.capitalize();
 
-  String get _status {
-    final status = surgery['status'];
-    if (status is String) return status.toLowerCase();
-    return 'pendente';
-  }
+  String get _status =>
+      (surgery['status'] as String? ?? 'pendente').toLowerCase();
 
   IconData get _statusIcon => switch (_status) {
         'confirmada' => Icons.check_circle,

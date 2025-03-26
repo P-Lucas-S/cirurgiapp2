@@ -54,17 +54,23 @@ class SurgeryDetailsScreen extends StatelessWidget {
         _buildReferenceItem(
           label: 'Procedimento:',
           collection: 'procedures',
-          documentId: surgeryData['procedure'],
+          documentId: (surgeryData['procedure'] is DocumentReference)
+              ? surgeryData['procedure'].id
+              : surgeryData['procedure']?.toString() ?? '',
         ),
         _buildReferenceItem(
           label: 'Cirurgião:',
           collection: 'surgeons',
-          documentId: surgeryData['surgeon'],
+          documentId: (surgeryData['surgeon'] is DocumentReference)
+              ? surgeryData['surgeon'].id
+              : surgeryData['surgeon']?.toString() ?? '',
         ),
         _buildReferenceItem(
           label: 'Anestesista:',
           collection: 'anesthesiologists',
-          documentId: surgeryData['anesthesiologist'],
+          documentId: (surgeryData['anesthesiologist'] is DocumentReference)
+              ? surgeryData['anesthesiologist'].id
+              : surgeryData['anesthesiologist']?.toString() ?? '',
         ),
         _buildDetailItem('Data:', _formattedDate),
       ],

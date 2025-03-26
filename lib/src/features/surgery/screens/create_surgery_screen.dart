@@ -11,7 +11,6 @@ class CreateSurgeryScreen extends StatefulWidget {
 }
 
 class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
-  // Controladores de texto para os campos
   final TextEditingController _patientController = TextEditingController();
   final TextEditingController _procedureController = TextEditingController();
   final TextEditingController _surgeonNameController = TextEditingController();
@@ -20,62 +19,70 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   final TextEditingController _bloodProductController = TextEditingController();
   final TextEditingController _opmeController = TextEditingController();
 
-  // Serviços
   final SurgeryService _surgeryService = SurgeryService();
   final MedicalDataService _medicalService = MedicalDataService();
 
-  // Variáveis para seleção (armazenando os IDs dos documentos)
-  String? _selectedSurgeonId;
-  String? _selectedProcedureId;
-  String? _selectedOpmeId;
-  String?
-      _selectedAnesthesiologistId; // Caso venha a ser selecionado via diálogo
+  // Alterar para DocumentReference
+  DocumentReference? _selectedProcedureRef;
+  DocumentReference? _selectedSurgeonRef;
+  DocumentReference? _selectedOpmeRef;
+  DocumentReference? _selectedAnesthesiologistRef;
+
   DateTime _selectedDate = DateTime.now();
   bool _needsICU = false;
-  bool _residentConfirmation = false; // Se necessário para outro fluxo
+  final bool _residentConfirmation = false; // Tornado final
 
   bool _isLoading = false;
 
-  // Seleciona um procedimento e atualiza o campo com o nome correspondente
   Future<void> _selectProcedure() async {
     final selectedId = await _medicalService.showSingleSelectionDialog(
       context: context,
       collection: 'procedures',
     );
+
     if (selectedId != null) {
-      final name = await _medicalService.getItemName('procedures', selectedId);
+      final docRef =
+          FirebaseFirestore.instance.collection('procedures').doc(selectedId);
+      final name = await _medicalService.getItemName(docRef);
+
       setState(() {
-        _selectedProcedureId = selectedId;
+        _selectedProcedureRef = docRef;
         _procedureController.text = name;
       });
     }
   }
 
-  // Seleciona um cirurgião e atualiza o campo com o nome correspondente
   Future<void> _selectSurgeon() async {
     final selectedId = await _medicalService.showSingleSelectionDialog(
       context: context,
       collection: 'surgeons',
     );
+
     if (selectedId != null) {
-      final name = await _medicalService.getItemName('surgeons', selectedId);
+      final docRef =
+          FirebaseFirestore.instance.collection('surgeons').doc(selectedId);
+      final name = await _medicalService.getItemName(docRef);
+
       setState(() {
-        _selectedSurgeonId = selectedId;
+        _selectedSurgeonRef = docRef;
         _surgeonNameController.text = name;
       });
     }
   }
 
-  // Seleciona OPMe e atualiza o campo (opcional: similar para anestesista)
   Future<void> _selectOpme() async {
     final selectedId = await _medicalService.showSingleSelectionDialog(
       context: context,
       collection: 'opme',
     );
+
     if (selectedId != null) {
-      final name = await _medicalService.getItemName('opme', selectedId);
+      final docRef =
+          FirebaseFirestore.instance.collection('opme').doc(selectedId);
+      final name = await _medicalService.getItemName(docRef);
+
       setState(() {
-        _selectedOpmeId = selectedId;
+        _selectedOpmeRef = docRef;
         _opmeController.text = name;
       });
     }
@@ -99,8 +106,8 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   // Submissão dos dados para criar a cirurgia
   Future<void> _submit() async {
     if (_patientController.text.isEmpty ||
-        _selectedProcedureId == null ||
-        _selectedSurgeonId == null) {
+        _selectedProcedureRef == null ||
+        _selectedSurgeonRef == null) {
       _showSnackBar('Selecione cirurgião e procedimento');
       return;
     }
@@ -109,10 +116,10 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
 
     final surgeryData = {
       'patientName': _patientController.text.trim(),
-      'procedure': _selectedProcedureId, // Armazena o ID do procedimento
-      'surgeon': _selectedSurgeonId, // Armazena o ID do cirurgião
-      'anesthesiologist': _selectedAnesthesiologistId,
-      'opme': _selectedOpmeId,
+      'procedure': _selectedProcedureRef, // Usando a referência diretamente
+      'surgeon': _selectedSurgeonRef,
+      'anesthesiologist': _selectedAnesthesiologistRef,
+      'opme': _selectedOpmeRef,
       'bloodProducts': _bloodProductController.text.trim(),
       'needsICU': _needsICU,
       'dateTime': Timestamp.fromDate(_selectedDate),
@@ -126,7 +133,7 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       _showSnackBar('Cirurgia criada com sucesso!');
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      _showSnackBar('Erro ao criar cirurgia.');
+      _showSnackBar('Erro ao criar cirurgia: ${e.toString()}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -164,16 +171,15 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _procedureController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Procedimento',
-                        prefixIcon: Icon(Icons.medical_services),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.search),
+                          onPressed: _selectProcedure,
+                        ),
                       ),
                       readOnly: true,
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: _selectProcedure,
                   ),
                 ],
               ),
