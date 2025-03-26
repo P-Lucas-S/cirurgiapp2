@@ -16,18 +16,19 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   final TextEditingController _surgeonNameController = TextEditingController();
   final TextEditingController _anesthesiologistController =
       TextEditingController();
-  final TextEditingController _bloodProductController = TextEditingController();
-  final TextEditingController _opmeController = TextEditingController();
+  // Removemos os controllers de OPME e Produto Sanguíneo, pois usaremos seleção múltipla
 
   final SurgeryService _surgeryService = SurgeryService();
   final MedicalDataService _medicalService = MedicalDataService();
 
-  // Referências atualizadas
+  // Seleção única
   DocumentReference? _selectedProcedureRef;
   DocumentReference? _selectedSurgeonRef;
-  DocumentReference? _selectedOpmeRef;
   DocumentReference? _selectedAnesthesiologistRef;
-  DocumentReference? _selectedBloodProductRef;
+
+  // Seleção múltipla
+  List<DocumentReference> _selectedOpme = [];
+  List<DocumentReference> _selectedBloodProducts = [];
 
   DateTime _selectedDate = DateTime.now();
   bool _needsICU = false;
@@ -71,25 +72,6 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
-  Future<void> _selectOpme() async {
-    final selectedId = await _medicalService.showSingleSelectionDialog(
-      context: context,
-      collection: 'opme',
-    );
-
-    if (selectedId != null) {
-      final docRef =
-          FirebaseFirestore.instance.collection('opme').doc(selectedId);
-      final name = await _medicalService.getItemName(docRef);
-
-      setState(() {
-        _selectedOpmeRef = docRef;
-        _opmeController.text = name;
-      });
-    }
-  }
-
-  // Método para selecionar anestesista
   Future<void> _selectAnesthesiologist() async {
     final selectedId = await _medicalService.showSingleSelectionDialog(
       context: context,
@@ -109,27 +91,39 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
-  // Método para selecionar produto sanguíneo
-  Future<void> _selectBloodProduct() async {
-    final selectedId = await _medicalService.showSingleSelectionDialog(
+  Future<void> _selectOpme() async {
+    final selectedIds = await _medicalService.showMultiSelectionDialog(
       context: context,
-      collection: 'blood_products',
+      collection: 'opme',
     );
 
-    if (selectedId != null) {
-      final docRef = FirebaseFirestore.instance
-          .collection('blood_products')
-          .doc(selectedId);
-      final name = await _medicalService.getItemName(docRef);
-
+    if (selectedIds != null && selectedIds.isNotEmpty) {
+      final docRefs = selectedIds
+          .map((id) => FirebaseFirestore.instance.collection('opme').doc(id))
+          .toList();
       setState(() {
-        _selectedBloodProductRef = docRef;
-        _bloodProductController.text = name;
+        _selectedOpme = docRefs;
       });
     }
   }
 
-  // Seleciona data da cirurgia via DatePicker
+  Future<void> _selectBloodProducts() async {
+    final selectedIds = await _medicalService.showMultiSelectionDialog(
+      context: context,
+      collection: 'blood_products',
+    );
+
+    if (selectedIds != null && selectedIds.isNotEmpty) {
+      final docRefs = selectedIds
+          .map((id) =>
+              FirebaseFirestore.instance.collection('blood_products').doc(id))
+          .toList();
+      setState(() {
+        _selectedBloodProducts = docRefs;
+      });
+    }
+  }
+
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -144,7 +138,6 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
-  // Submissão dos dados para criar a cirurgia
   Future<void> _submit() async {
     if (_patientController.text.isEmpty ||
         _selectedProcedureRef == null ||
@@ -160,8 +153,9 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       'procedure': _selectedProcedureRef, // Usando a referência diretamente
       'surgeon': _selectedSurgeonRef,
       'anesthesiologist': _selectedAnesthesiologistRef,
-      'opme': _selectedOpmeRef,
-      'bloodProducts': _selectedBloodProductRef,
+      'opme': _selectedOpme, // Lista de referências selecionadas
+      'bloodProducts':
+          _selectedBloodProducts, // Lista de referências selecionadas
       'needsICU': _needsICU,
       'dateTime': Timestamp.fromDate(_selectedDate),
       'confirmations': {
@@ -180,10 +174,56 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
-  // Exibe um SnackBar com a mensagem informada
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  Widget _buildMultiSelectField({
+    required BuildContext context,
+    required String label,
+    required List<DocumentReference> items,
+    required VoidCallback onTap,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: items.isEmpty
+                ? Text('Clique para selecionar $label')
+                : Wrap(
+                    spacing: 8,
+                    children: items
+                        .map(
+                          (ref) => Chip(
+                            label: FutureBuilder<DocumentSnapshot>(
+                              future: ref.get(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData) {
+                                  final data = snapshot.data!.data()
+                                      as Map<String, dynamic>?;
+                                  return Text(data?['name'] ?? 'Sem nome');
+                                }
+                                return const Text('Carregando...');
+                              },
+                            ),
+                            onDeleted: () => setState(() => items.remove(ref)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -225,7 +265,7 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ],
               ),
               const SizedBox(height: 15),
-              // Seleção de cirurgião (campo não editável com botão de seleção)
+              // Seleção de cirurgião
               Row(
                 children: [
                   Expanded(
@@ -245,7 +285,7 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ],
               ),
               const SizedBox(height: 15),
-              // Seleção de anestesista (campo não editável com botão de seleção)
+              // Seleção de anestesista
               Row(
                 children: [
                   Expanded(
@@ -265,44 +305,20 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ],
               ),
               const SizedBox(height: 15),
-              // Seleção de OPMe (campo não editável com botão de seleção)
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _opmeController,
-                      decoration: const InputDecoration(
-                        labelText: 'OPMe',
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      readOnly: true,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: _selectOpme,
-                  ),
-                ],
+              // Seleção múltipla de OPME
+              _buildMultiSelectField(
+                context: context,
+                label: 'OPMe',
+                items: _selectedOpme,
+                onTap: _selectOpme,
               ),
               const SizedBox(height: 15),
-              // Seleção de Produto Sanguíneo (campo não editável com botão de seleção)
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _bloodProductController,
-                      decoration: const InputDecoration(
-                        labelText: 'Produto Sanguíneo',
-                        prefixIcon: Icon(Icons.bloodtype),
-                      ),
-                      readOnly: true,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: _selectBloodProduct,
-                  ),
-                ],
+              // Seleção múltipla de Produtos Sanguíneos
+              _buildMultiSelectField(
+                context: context,
+                label: 'Produtos Sanguíneos',
+                items: _selectedBloodProducts,
+                onTap: _selectBloodProducts,
               ),
               const SizedBox(height: 15),
               // Necessidade de UTI
