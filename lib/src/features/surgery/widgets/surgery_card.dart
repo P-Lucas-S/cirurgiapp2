@@ -90,7 +90,6 @@ class SurgeryCard extends StatelessWidget {
           collection: 'surgeons',
           reference: surgery['surgeon'],
         ),
-        // Novas referências adicionadas
         _buildReferenceItem(
           label: 'Anestesista:',
           collection: 'anesthesiologists',
@@ -223,12 +222,9 @@ class SurgeryCard extends StatelessWidget {
   String get _formattedDateTime {
     try {
       final timestamp = surgery['dateTime'];
-      if (timestamp is Timestamp) {
-        return DateFormat('dd/MM/yyyy HH:mm').format(timestamp.toDate());
-      }
-      return 'Data inválida';
+      return DateFormat('dd/MM/yyyy HH:mm').format(timestamp.toDate());
     } catch (e) {
-      return 'Formato incorreto';
+      return 'Data inválida';
     }
   }
 

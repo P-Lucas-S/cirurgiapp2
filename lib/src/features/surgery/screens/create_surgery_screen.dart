@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:cirurgiapp/src/services/medical_data_service.dart';
 import 'package:cirurgiapp/src/services/surgery_service.dart';
 
@@ -16,7 +17,6 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   final TextEditingController _surgeonNameController = TextEditingController();
   final TextEditingController _anesthesiologistController =
       TextEditingController();
-  // Removemos os controllers de OPME e Produto Sanguíneo, pois usaremos seleção múltipla
 
   final SurgeryService _surgeryService = SurgeryService();
   final MedicalDataService _medicalService = MedicalDataService();
@@ -30,9 +30,10 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   List<DocumentReference> _selectedOpme = [];
   List<DocumentReference> _selectedBloodProducts = [];
 
-  DateTime _selectedDate = DateTime.now();
+  // Agora usando DateTime com data e hora
+  DateTime _selectedDateTime = DateTime.now();
   bool _needsICU = false;
-  final bool _residentConfirmation = false; // Tornado final
+  final bool _residentConfirmation = false;
 
   bool _isLoading = false;
 
@@ -124,17 +125,31 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
-  Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
+  Future<void> _selectDateTime() async {
+    final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
+      initialDate: _selectedDateTime,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
+
+    if (pickedDate != null) {
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          _selectedDateTime = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
     }
   }
 
@@ -150,14 +165,13 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
 
     final surgeryData = {
       'patientName': _patientController.text.trim(),
-      'procedure': _selectedProcedureRef, // Usando a referência diretamente
+      'procedure': _selectedProcedureRef,
       'surgeon': _selectedSurgeonRef,
       'anesthesiologist': _selectedAnesthesiologistRef,
-      'opme': _selectedOpme, // Lista de referências selecionadas
-      'bloodProducts':
-          _selectedBloodProducts, // Lista de referências selecionadas
+      'opme': _selectedOpme,
+      'bloodProducts': _selectedBloodProducts,
       'needsICU': _needsICU,
-      'dateTime': Timestamp.fromDate(_selectedDate),
+      'dateTime': _selectedDateTime,
       'confirmations': {
         'residente': _residentConfirmation,
       },
@@ -332,20 +346,20 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 },
               ),
               const SizedBox(height: 15),
-              // Data da cirurgia
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Data: ${_selectedDate.toLocal().toString().split(' ')[0]}',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ),
-                  IconButton(
+              // Data e Hora da cirurgia
+              TextFormField(
+                readOnly: true,
+                decoration: InputDecoration(
+                  labelText: 'Data e Hora da Cirurgia',
+                  suffixIcon: IconButton(
                     icon: const Icon(Icons.calendar_today),
-                    onPressed: _selectDate,
+                    onPressed: _selectDateTime,
                   ),
-                ],
+                ),
+                controller: TextEditingController(
+                  text:
+                      DateFormat('dd/MM/yyyy HH:mm').format(_selectedDateTime),
+                ),
               ),
               const SizedBox(height: 25),
               // Botão de envio

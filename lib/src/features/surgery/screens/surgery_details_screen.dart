@@ -66,12 +66,18 @@ class SurgeryDetailsScreen extends StatelessWidget {
           collection: 'anesthesiologists',
           reference: surgeryData['anesthesiologist'],
         ),
-        _buildReferenceItem(
-          label: 'Produto Sanguíneo:',
-          collection: 'blood_products',
-          reference: surgeryData['bloodProducts'],
-        ),
         _buildDetailItem('Data:', _formattedDate),
+        // Novos campos com listas de referências:
+        _buildReferenceList(
+          label: 'OPMe Utilizados:',
+          references: surgeryData['opme'] as List<dynamic>,
+          collection: 'opme',
+        ),
+        _buildReferenceList(
+          label: 'Produtos Sanguíneos:',
+          references: surgeryData['bloodProducts'] as List<dynamic>,
+          collection: 'blood_products',
+        ),
       ],
     );
   }
@@ -89,13 +95,50 @@ class SurgeryDetailsScreen extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildDetailItem(label, 'Carregando...');
         }
-
         final data = snapshot.data?.data() as Map<String, dynamic>?;
         final value =
             data?['name']?.toString().capitalize() ?? 'Não encontrado';
         return _buildDetailItem(label, value);
       },
     );
+  }
+
+  Widget _buildReferenceList({
+    required String label,
+    required List<dynamic> references,
+    required String collection,
+  }) {
+    if (references.isEmpty) return const SizedBox.shrink();
+
+    return FutureBuilder<List<String>>(
+      future: _getItemNames(references),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Wrap(
+              spacing: 8,
+              children: snapshot.data!
+                  .map((name) => Chip(label: Text(name)))
+                  .toList(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<List<String>> _getItemNames(List<dynamic> references) async {
+    final List<String> names = [];
+    for (var ref in references) {
+      final doc = await (ref as DocumentReference).get();
+      names.add(doc['name'] ?? 'Nome não encontrado');
+    }
+    return names;
   }
 
   Widget _buildDetailItem(String label, String value) {

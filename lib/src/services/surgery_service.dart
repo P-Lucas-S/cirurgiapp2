@@ -25,6 +25,11 @@ class SurgeryService {
         throw Exception('Referências inválidas para procedimento ou cirurgião');
       }
 
+      // Garantir que os campos estão sendo salvos corretamente
+      final opme = surgeryData['opme'] ?? [];
+      final bloodProducts = surgeryData['bloodProducts'] ?? [];
+      final dateTime = surgeryData['dateTime'] as DateTime;
+
       await _firestore.collection('surgeries').add({
         ...surgeryData,
         'procedure': procedureRef,
@@ -33,6 +38,9 @@ class SurgeryService {
         'createdBy': _firestore.doc('users/${_auth.currentUser!.uid}'),
         'confirmations': _initConfirmations(),
         'timestamps': _initTimestamps(),
+        'opme': opme,
+        'bloodProducts': bloodProducts,
+        'dateTime': Timestamp.fromDate(dateTime),
       });
     } on FirebaseException catch (e) {
       _logger.e('Erro Firestore [${e.code}]: ${e.message}');
