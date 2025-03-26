@@ -82,18 +82,18 @@ class SurgeryDetailsScreen extends StatelessWidget {
     required String collection,
     required String? documentId,
   }) {
+    if (documentId == null || documentId.isEmpty) {
+      return _buildDetailItem(label, 'Não especificado');
+    }
     return FutureBuilder<DocumentSnapshot>(
-      future: documentId != null
-          ? FirebaseFirestore.instance
-              .collection(collection)
-              .doc(documentId)
-              .get()
-          : null,
+      future: FirebaseFirestore.instance
+          .collection(collection)
+          .doc(documentId)
+          .get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildDetailItem(label, 'Carregando...');
         }
-
         final data = snapshot.data?.data() as Map<String, dynamic>?;
         final value =
             data?['name']?.toString().capitalize() ?? 'Não especificado';

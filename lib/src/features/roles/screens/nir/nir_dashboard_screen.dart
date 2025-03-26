@@ -76,11 +76,14 @@ class NIRDashboardScreen extends StatelessWidget {
         try {
           final surgery = doc.data() as Map<String, dynamic>;
 
+          final procedureRef = _convertToReference(surgery['procedure']);
+          final surgeonRef = _convertToReference(surgery['surgeon']);
+
           return SurgeryCard(
             surgery: {
               ...surgery,
-              'procedure': _convertToReference(surgery['procedure'])?.id ?? '',
-              'surgeon': _convertToReference(surgery['surgeon'])?.id ?? '',
+              'procedure': procedureRef?.path ?? '',
+              'surgeon': surgeonRef?.path ?? '',
             },
             surgeryId: doc.id,
             canCancel: true,
@@ -94,12 +97,9 @@ class NIRDashboardScreen extends StatelessWidget {
 
   DocumentReference? _convertToReference(dynamic value) {
     if (value is DocumentReference) return value;
-    if (value is String) return FirebaseFirestore.instance.doc(value);
-
-    if (value is Map && value.containsKey('path')) {
-      return FirebaseFirestore.instance.doc(value['path']);
+    if (value is String && value.isNotEmpty) {
+      return FirebaseFirestore.instance.doc(value);
     }
-
     return null;
   }
 
