@@ -83,12 +83,12 @@ class SurgeryCard extends StatelessWidget {
         _buildReferenceItem(
           label: 'Procedimento:',
           collection: 'procedures',
-          documentId: surgery['procedure']?.toString() ?? '',
+          reference: surgery['procedure'],
         ),
         _buildReferenceItem(
           label: 'Cirurgião:',
           collection: 'surgeons',
-          documentId: surgery['surgeon']?.toString() ?? '',
+          reference: surgery['surgeon'],
         ),
       ],
     );
@@ -97,20 +97,17 @@ class SurgeryCard extends StatelessWidget {
   Widget _buildReferenceItem({
     required String label,
     required String collection,
-    required String documentId,
+    required dynamic reference,
   }) {
-    if (documentId.isEmpty) return _buildDetailItem(label, 'Não especificado');
+    final docRef = _getDocumentReference(reference);
+    if (docRef == null) return _buildDetailItem(label, 'Não especificado');
 
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance
-          .collection(collection)
-          .doc(documentId)
-          .get(),
+      future: docRef.get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildDetailItem(label, 'Carregando...');
         }
-
         final data = snapshot.data?.data() as Map<String, dynamic>?;
         final value =
             data?['name']?.toString().capitalize() ?? 'Não encontrado';
@@ -240,4 +237,13 @@ class SurgeryCard extends StatelessWidget {
         'negada' => AppColors.error,
         _ => AppColors.secondary,
       };
+
+  /// Função auxiliar para converter um valor em DocumentReference, se possível.
+  DocumentReference? _getDocumentReference(dynamic value) {
+    if (value is DocumentReference) return value;
+    if (value is String && value.isNotEmpty) {
+      return FirebaseFirestore.instance.doc(value);
+    }
+    return null;
+  }
 }

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cirurgiapp/src/core/constants/app_colors.dart';
+import 'package:cirurgiapp/src/core/extensions/string_extensions.dart';
 import 'package:cirurgiapp/src/services/surgery_service.dart';
 import 'package:provider/provider.dart';
 import 'package:cirurgiapp/src/core/models/user_model.dart';
-import 'package:cirurgiapp/src/core/extensions/string_extensions.dart';
 
 class SurgeryDetailsScreen extends StatelessWidget {
   final String surgeryId;
@@ -54,23 +54,17 @@ class SurgeryDetailsScreen extends StatelessWidget {
         _buildReferenceItem(
           label: 'Procedimento:',
           collection: 'procedures',
-          documentId: (surgeryData['procedure'] is DocumentReference)
-              ? surgeryData['procedure'].id
-              : surgeryData['procedure']?.toString() ?? '',
+          reference: surgeryData['procedure'],
         ),
         _buildReferenceItem(
           label: 'Cirurgião:',
           collection: 'surgeons',
-          documentId: (surgeryData['surgeon'] is DocumentReference)
-              ? surgeryData['surgeon'].id
-              : surgeryData['surgeon']?.toString() ?? '',
+          reference: surgeryData['surgeon'],
         ),
         _buildReferenceItem(
           label: 'Anestesista:',
           collection: 'anesthesiologists',
-          documentId: (surgeryData['anesthesiologist'] is DocumentReference)
-              ? surgeryData['anesthesiologist'].id
-              : surgeryData['anesthesiologist']?.toString() ?? '',
+          reference: surgeryData['anesthesiologist'],
         ),
         _buildDetailItem('Data:', _formattedDate),
       ],
@@ -80,23 +74,20 @@ class SurgeryDetailsScreen extends StatelessWidget {
   Widget _buildReferenceItem({
     required String label,
     required String collection,
-    required String? documentId,
+    required dynamic reference,
   }) {
-    if (documentId == null || documentId.isEmpty) {
-      return _buildDetailItem(label, 'Não especificado');
-    }
+    final docRef = _getDocumentReference(reference);
+
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance
-          .collection(collection)
-          .doc(documentId)
-          .get(),
+      future: docRef?.get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildDetailItem(label, 'Carregando...');
         }
+
         final data = snapshot.data?.data() as Map<String, dynamic>?;
         final value =
-            data?['name']?.toString().capitalize() ?? 'Não especificado';
+            data?['name']?.toString().capitalize() ?? 'Não encontrado';
         return _buildDetailItem(label, value);
       },
     );
@@ -116,19 +107,22 @@ class SurgeryDetailsScreen extends StatelessWidget {
 
   Widget _buildConfirmationStatus() {
     final confirmations = surgeryData['confirmations'] as Map<String, dynamic>;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Confirmações:',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        ...confirmations.entries.map((entry) => ListTile(
-              title: Text(_getRoleName(entry.key)),
-              trailing: Icon(
-                entry.value ? Icons.check_circle : Icons.cancel,
-                color: entry.value ? AppColors.success : AppColors.error,
-              ),
-            )),
+        const Text(
+          'Confirmações:',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        ...confirmations.entries.map(
+          (entry) => ListTile(
+            title: Text(_getRoleName(entry.key)),
+            trailing: Icon(
+              entry.value ? Icons.check_circle : Icons.cancel,
+              color: entry.value ? AppColors.success : AppColors.error,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -137,7 +131,6 @@ class SurgeryDetailsScreen extends StatelessWidget {
     final status =
         surgeryData['status']?.toString().toLowerCase() ?? 'pendente';
     final (backgroundColor, textColor) = _getStatusColors(status);
-
     return Chip(
       label: Text(status.toUpperCase()),
       backgroundColor: backgroundColor,
@@ -172,7 +165,6 @@ class SurgeryDetailsScreen extends StatelessWidget {
             onPressed: () async {
               try {
                 await SurgeryService().cancelSurgery(surgeryId);
-
                 if (ctx.mounted) {
                   Navigator.pop(ctx);
                   if (context.mounted) {
@@ -244,5 +236,14 @@ class SurgeryDetailsScreen extends StatelessWidget {
   bool _isNIRUser(BuildContext context) {
     final user = Provider.of<HospitalUser?>(context);
     return user?.roles.contains('NIR') ?? false;
+  }
+
+  /// Função auxiliar para converter um valor em DocumentReference, se possível.
+  DocumentReference? _getDocumentReference(dynamic value) {
+    if (value is DocumentReference) return value;
+    if (value is String && value.isNotEmpty) {
+      return FirebaseFirestore.instance.doc(value);
+    }
+    return null;
   }
 }

@@ -34,11 +34,9 @@ class NIRDashboardScreen extends StatelessWidget {
           if (snapshot.hasError) {
             return _buildErrorWidget('Erro ao carregar cirurgias');
           }
-
           if (snapshot.connectionState == ConnectionState.waiting) {
             return _buildLoadingIndicator();
           }
-
           final surgeries = snapshot.data!.docs;
           return _buildSurgeriesList(surgeries);
         },
@@ -66,56 +64,18 @@ class NIRDashboardScreen extends StatelessWidget {
     if (surgeries.isEmpty) {
       return _buildErrorWidget('Nenhuma cirurgia agendada');
     }
-
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemCount: surgeries.length,
       itemBuilder: (context, index) {
         final doc = surgeries[index];
-        try {
-          final surgery = doc.data() as Map<String, dynamic>;
-
-          final procedureRef = _convertToReference(surgery['procedure']);
-          final surgeonRef = _convertToReference(surgery['surgeon']);
-
-          return SurgeryCard(
-            surgery: {
-              ...surgery,
-              'procedure': procedureRef?.path ?? '',
-              'surgeon': surgeonRef?.path ?? '',
-            },
-            surgeryId: doc.id,
-            canCancel: true,
-          );
-        } catch (e) {
-          return _buildErrorCard('Formato inválido na cirurgia ${doc.id}');
-        }
+        return SurgeryCard(
+          surgery: doc.data() as Map<String, dynamic>,
+          surgeryId: doc.id,
+          canCancel: true,
+        );
       },
-    );
-  }
-
-  DocumentReference? _convertToReference(dynamic value) {
-    if (value is DocumentReference) return value;
-    if (value is String && value.isNotEmpty) {
-      return FirebaseFirestore.instance.doc(value);
-    }
-    return null;
-  }
-
-  Widget _buildErrorCard(String message) {
-    return Card(
-      color: AppColors.error,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(Icons.error, color: AppColors.onPrimary),
-            const SizedBox(width: 8),
-            Flexible(child: Text(message)),
-          ],
-        ),
-      ),
     );
   }
 
