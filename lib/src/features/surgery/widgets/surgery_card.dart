@@ -5,13 +5,13 @@ import 'package:cirurgiapp/src/core/constants/app_colors.dart';
 import 'package:cirurgiapp/src/core/extensions/string_extensions.dart';
 import 'package:cirurgiapp/src/features/surgery/screens/surgery_details_screen.dart';
 import 'package:cirurgiapp/src/services/surgery_service.dart';
-import 'package:provider/provider.dart';
-import 'package:cirurgiapp/src/core/models/user_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SurgeryCard extends StatelessWidget {
   final String surgeryId;
   final Map<String, dynamic> surgery;
   final bool canCancel;
+  final bool canConfirm;
 
   static const double _iconSize = 32;
   static const double _cardElevation = 3;
@@ -23,6 +23,7 @@ class SurgeryCard extends StatelessWidget {
     super.key,
     required this.surgeryId,
     required this.surgery,
+    this.canConfirm = false,
     this.canCancel = false,
   });
 
@@ -49,6 +50,7 @@ class SurgeryCard extends StatelessWidget {
         const SizedBox(width: 16),
         Expanded(child: _buildSurgeryInfo(context)),
         if (canCancel) _buildCancelButton(context),
+        if (canConfirm) _buildConfirmButton(context),
       ],
     );
   }
@@ -61,6 +63,13 @@ class SurgeryCard extends StatelessWidget {
         const SizedBox(height: 8),
         _buildSurgeryDetails(),
       ],
+    );
+  }
+
+  Widget _buildCancelButton(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.cancel, color: AppColors.error),
+      onPressed: () => _confirmCancellation(context),
     );
   }
 
@@ -82,22 +91,18 @@ class SurgeryCard extends StatelessWidget {
         _buildDetailItem('Status:', _formattedStatus),
         _buildReferenceItem(
           label: 'Procedimento:',
-          collection: 'procedures',
           reference: surgery['procedure'],
         ),
         _buildReferenceItem(
           label: 'Cirurgião:',
-          collection: 'surgeons',
           reference: surgery['surgeon'],
         ),
         _buildReferenceItem(
           label: 'Anestesista:',
-          collection: 'anesthesiologists',
           reference: surgery['anesthesiologist'],
         ),
         _buildReferenceItem(
           label: 'Produto Sanguíneo:',
-          collection: 'blood_products',
           reference: surgery['bloodProducts'],
         ),
       ],
@@ -106,24 +111,29 @@ class SurgeryCard extends StatelessWidget {
 
   Widget _buildReferenceItem({
     required String label,
-    required String collection,
     required dynamic reference,
   }) {
-    final docRef = _getDocumentReference(reference);
-    if (docRef == null) return _buildDetailItem(label, 'Não especificado');
+    try {
+      final docRef = _getDocumentReference(reference);
+      if (docRef == null) return _buildDetailItem(label, 'Não especificado');
 
-    return FutureBuilder<DocumentSnapshot>(
-      future: docRef.get(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildDetailItem(label, 'Carregando...');
-        }
-        final data = snapshot.data?.data() as Map<String, dynamic>?;
-        final value =
-            data?['name']?.toString().capitalize() ?? 'Não encontrado';
-        return _buildDetailItem(label, value);
-      },
-    );
+      return FutureBuilder<DocumentSnapshot>(
+        future: docRef.get(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _buildDetailItem(label, 'Erro ao carregar');
+          }
+          if (!snapshot.hasData) {
+            return _buildDetailItem(label, 'Carregando...');
+          }
+
+          final data = snapshot.data!.data() as Map<String, dynamic>?;
+          return _buildDetailItem(label, data?['name'] ?? 'Não encontrado');
+        },
+      );
+    } catch (e) {
+      return _buildDetailItem(label, 'Dado inválido');
+    }
   }
 
   Widget _buildDetailItem(String label, String value) {
@@ -152,14 +162,60 @@ class SurgeryCard extends StatelessWidget {
     );
   }
 
-  Widget _buildCancelButton(BuildContext context) {
-    final user = Provider.of<HospitalUser?>(context);
-    if (user == null || !user.roles.contains('NIR'))
-      return const SizedBox.shrink();
+  Widget _buildConfirmButton(BuildContext context) {
+    if (!canConfirm) return const SizedBox.shrink();
 
     return IconButton(
-      icon: const Icon(Icons.cancel, color: AppColors.error),
-      onPressed: () => _confirmCancellation(context),
+      icon: Icon(
+        surgery['confirmations']['residente'] ?? false
+            ? Icons.check_circle
+            : Icons.pending_actions,
+        color: surgery['confirmations']['residente'] ?? false
+            ? AppColors.success
+            : AppColors.secondary,
+      ),
+      onPressed: () => _toggleResidentConfirmation(context),
+    );
+  }
+
+  void _toggleResidentConfirmation(BuildContext context) {
+    final newValue = !(surgery['confirmations']['residente'] ?? false);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(newValue
+            ? 'Confirmar Pré-Operatório?'
+            : 'Desconfirmar Pré-Operatório?'),
+        content: Text(newValue
+            ? 'Confirmar que o pré-operatório foi realizado conforme protocolo?'
+            : 'Deseja retirar a confirmação do pré-operatório?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                await SurgeryService().confirmRequirement(
+                  surgeryId,
+                  'residente',
+                  FirebaseAuth.instance.currentUser!.uid,
+                  newValue,
+                );
+                if (ctx.mounted) Navigator.pop(ctx);
+              } catch (e) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text('Erro: ${e.toString()}')),
+                  );
+                }
+              }
+            },
+            child: Text(newValue ? 'Confirmar' : 'Desconfirmar'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -245,16 +301,21 @@ class SurgeryCard extends StatelessWidget {
         _ => AppColors.secondary,
       };
 
-  /// Função auxiliar para converter um valor em DocumentReference, se possível.
   DocumentReference? _getDocumentReference(dynamic value) {
-    if (value is DocumentReference) return value;
-    if (value is String && value.isNotEmpty) {
-      // Verifica se o caminho possui um número par de segmentos (ex: 'collection/docId')
-      final segments = value.split('/');
-      if (segments.length.isEven) {
-        return FirebaseFirestore.instance.doc(value);
+    try {
+      if (value is DocumentReference) {
+        return value;
       }
+      if (value is String) {
+        if (value.contains('/')) {
+          return FirebaseFirestore.instance.doc(value);
+        }
+        return FirebaseFirestore.instance.collection('procedures').doc(value);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Erro ao parsear referência: $e');
+      return null;
     }
-    return null;
   }
 }

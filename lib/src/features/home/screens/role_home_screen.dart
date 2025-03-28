@@ -1,22 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:cirurgiapp/src/core/models/user_model.dart';
 import 'package:cirurgiapp/src/services/auth_service.dart';
-import 'package:cirurgiapp/src/features/home/screens/role_confirmation_screen.dart'; // Certifique-se de que o caminho está correto
+import 'package:cirurgiapp/src/features/home/screens/role_confirmation_screen.dart';
+
+// Stub para ResidentDashboardScreen, ajuste conforme a implementação real.
+class ResidentDashboardScreen extends StatelessWidget {
+  const ResidentDashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text('Dashboard do Residente de Cirurgia'));
+  }
+}
 
 class RoleHomeScreen extends StatefulWidget {
   final String role;
   final HospitalUser user;
 
-  const RoleHomeScreen({super.key, required this.role, required this.user});
+  const RoleHomeScreen({
+    super.key,
+    required this.role,
+    required this.user,
+  });
 
   @override
-  _RoleHomeScreenState createState() => _RoleHomeScreenState();
+  State<RoleHomeScreen> createState() => _RoleHomeScreenState();
 }
 
 class _RoleHomeScreenState extends State<RoleHomeScreen> {
   Future<void> _logout() async {
     await AuthService().signOut();
-    if (!mounted) return; // Verifica se o widget ainda está montado
+    if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/login');
   }
 
@@ -25,21 +39,19 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
   }
 
   Widget _buildRoleSpecificContent() {
-    final confirmationRoles = {
-      'Residente de Cirurgia',
-      'Centro Cirúrgico',
-      'Banco de Sangue',
-      'UTI',
-      'Centro de Material Hospitalar'
-    };
+    final hasRole = widget.user.roles.contains(widget.role);
 
-    if (confirmationRoles.contains(widget.role)) {
-      return RoleConfirmationScreen(role: widget.role, user: widget.user);
+    if (!hasRole) {
+      return const Center(child: Text('Acesso não autorizado para este cargo'));
     }
 
     return switch (widget.role) {
       'NIR' => _buildNIRDashboard(),
-      _ => const Center(child: Text('Visualização não implementada')),
+      'Residente de Cirurgia' => const ResidentDashboardScreen(),
+      _ => RoleConfirmationScreen(
+          role: widget.role,
+          user: widget.user,
+        ),
     };
   }
 

@@ -1,27 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cirurgiapp/src/core/constants/app_colors.dart';
-import 'package:cirurgiapp/src/services/surgery_service.dart';
+import 'package:cirurgiapp/src/services/auth_service.dart';
+import 'package:cirurgiapp/src/features/auth/screens/login_screen.dart';
 import 'package:cirurgiapp/src/features/surgery/screens/create_surgery_screen.dart';
 import 'package:cirurgiapp/src/features/surgery/widgets/surgery_card.dart';
 
 class NIRDashboardScreen extends StatelessWidget {
   const NIRDashboardScreen({super.key});
 
+  void _logout(BuildContext context) async {
+    await AuthService().signOut();
+    if (!context.mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final SurgeryService surgeryService = SurgeryService();
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard do NIR'),
+        title: const Text(
+          'NIR',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.onPrimary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            color: AppColors.onPrimary,
-            onPressed: () => surgeryService.generateDailyReport(),
+            icon: const Icon(Icons.logout),
+            onPressed: () => _logout(context),
           ),
         ],
       ),

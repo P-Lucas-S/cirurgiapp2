@@ -69,14 +69,16 @@ class SurgeryService {
     };
   }
 
-  Future<void> confirmRequirement(String surgeryId, String role) async {
+  Future<void> confirmRequirement(
+      String surgeryId, String field, String userId, bool value) async {
     try {
       await _firestore.collection('surgeries').doc(surgeryId).update({
-        'confirmations.$role': true,
+        'confirmations.$field': value,
+        'confirmedBy.$field': userId,
         'timestamps.updatedAt': FieldValue.serverTimestamp(),
       });
-    } on FirebaseException catch (e) {
-      _logger.e('Erro na confirmação [${e.code}]: ${e.message}');
+    } catch (e) {
+      _logger.e('Erro na confirmação: $e');
       rethrow;
     }
   }
@@ -89,6 +91,20 @@ class SurgeryService {
       });
     } on FirebaseException catch (e) {
       _logger.e('Erro ao cancelar [${e.code}]: ${e.message}');
+      rethrow;
+    }
+  }
+
+  Future<void> confirmResidentPreOp(
+      String surgeryId, String userId, bool value) async {
+    try {
+      await _firestore.collection('surgeries').doc(surgeryId).update({
+        'confirmations.residente': value,
+        'confirmedBy.residente': userId,
+        'timestamps.updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      _logger.e('Erro na confirmação do residente: $e');
       rethrow;
     }
   }
