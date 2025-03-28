@@ -12,6 +12,7 @@ class SurgeryCard extends StatelessWidget {
   final Map<String, dynamic> surgery;
   final bool canCancel;
   final bool canConfirm;
+  final String userRole; // Propriedade adicionada
 
   static const double _iconSize = 32;
   static const double _cardElevation = 3;
@@ -19,13 +20,22 @@ class SurgeryCard extends StatelessWidget {
       EdgeInsets.symmetric(vertical: 8, horizontal: 16);
   static const EdgeInsets _contentPadding = EdgeInsets.all(16);
 
+  // Constante de salas cirúrgicas
+  static const List<String> _surgeryRooms = [
+    'Sala 1',
+    'Sala 2',
+    'Sala 3',
+    'Sala 4'
+  ];
+
   const SurgeryCard({
-    super.key,
+    Key? key,
     required this.surgeryId,
     required this.surgery,
+    required this.userRole, // Parâmetro obrigatório adicionado
     this.canConfirm = false,
     this.canCancel = false,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +136,6 @@ class SurgeryCard extends StatelessWidget {
           if (!snapshot.hasData) {
             return _buildDetailItem(label, 'Carregando...');
           }
-
           final data = snapshot.data!.data() as Map<String, dynamic>?;
           return _buildDetailItem(label, data?['name'] ?? 'Não encontrado');
         },
@@ -162,9 +171,28 @@ class SurgeryCard extends StatelessWidget {
     );
   }
 
+  // Método modificado para confirmação com base na role do usuário
   Widget _buildConfirmButton(BuildContext context) {
     if (!canConfirm) return const SizedBox.shrink();
 
+    // Verifica se a role do usuário é 'Centro Cirúrgico'
+    final bool isSurgicalCenter = userRole == 'Centro Cirúrgico';
+
+    if (isSurgicalCenter) {
+      return IconButton(
+        icon: Icon(
+          surgery['confirmations']['centro_cirurgico'] ?? false
+              ? Icons.check_circle
+              : Icons.meeting_room_outlined,
+          color: surgery['confirmations']['centro_cirurgico'] ?? false
+              ? AppColors.success
+              : AppColors.secondary,
+        ),
+        onPressed: () => _showSurgicalCenterDialog(context),
+      );
+    }
+
+    // Confirmação padrão para Residentes
     return IconButton(
       icon: Icon(
         surgery['confirmations']['residente'] ?? false
@@ -175,6 +203,83 @@ class SurgeryCard extends StatelessWidget {
             : AppColors.secondary,
       ),
       onPressed: () => _toggleResidentConfirmation(context),
+    );
+  }
+
+  // Novo método para mostrar o diálogo do Centro Cirúrgico
+  void _showSurgicalCenterDialog(BuildContext context) {
+    String? selectedRoom = surgery['surgeryRoom'];
+    bool isConfirmed = surgery['confirmations']['centro_cirurgico'] ?? false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Confirmar Centro Cirúrgico'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                title: const Text('Confirmar Cirurgia'),
+                value: isConfirmed,
+                activeColor: AppColors.success,
+                onChanged: (value) => setState(() => isConfirmed = value),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedRoom,
+                decoration: InputDecoration(
+                  labelText: 'Selecionar Sala',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  filled: true,
+                ),
+                items: _surgeryRooms
+                    .map((room) => DropdownMenuItem(
+                          value: room,
+                          child: Text(room),
+                        ))
+                    .toList(),
+                onChanged: (value) => setState(() => selectedRoom = value),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () async {
+                try {
+                  // Atualiza a confirmação e a sala selecionada
+                  await SurgeryService().confirmRequirement(
+                    surgeryId,
+                    'centro_cirurgico',
+                    FirebaseAuth.instance.currentUser!.uid,
+                    isConfirmed,
+                  );
+                  if (selectedRoom != null) {
+                    await FirebaseFirestore.instance
+                        .collection('surgeries')
+                        .doc(surgeryId)
+                        .update({'surgeryRoom': selectedRoom});
+                  }
+                  if (ctx.mounted) Navigator.pop(ctx);
+                } catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text('Erro: ${e.toString()}')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Salvar'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -255,7 +360,6 @@ class SurgeryCard extends StatelessWidget {
     try {
       await SurgeryService().cancelSurgery(surgeryId);
       if (!dialogContext.mounted) return;
-
       Navigator.pop(dialogContext);
       ScaffoldMessenger.of(dialogContext).showSnackBar(
         const SnackBar(
@@ -265,7 +369,6 @@ class SurgeryCard extends StatelessWidget {
       );
     } catch (e) {
       if (!dialogContext.mounted) return;
-
       ScaffoldMessenger.of(dialogContext).showSnackBar(
         SnackBar(
           content: Text('Erro ao cancelar: ${e.toString()}'),

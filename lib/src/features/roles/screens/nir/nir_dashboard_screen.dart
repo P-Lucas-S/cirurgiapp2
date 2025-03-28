@@ -88,6 +88,7 @@ class NIRDashboardScreen extends StatelessWidget {
         return SurgeryCard(
           surgery: doc.data() as Map<String, dynamic>,
           surgeryId: doc.id,
+          userRole: 'NIR',
           canCancel: true,
         );
       },

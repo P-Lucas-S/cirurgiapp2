@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cirurgiapp/src/core/models/user_model.dart';
 import 'package:cirurgiapp/src/services/auth_service.dart';
 import 'package:cirurgiapp/src/features/home/screens/role_confirmation_screen.dart';
+import 'package:cirurgiapp/src/features/roles/screens/surgical_center/surgical_center_confirmation.dart';
 
 // Stub para ResidentDashboardScreen, ajuste conforme a implementação real.
 class ResidentDashboardScreen extends StatelessWidget {
@@ -48,6 +49,7 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
     return switch (widget.role) {
       'NIR' => _buildNIRDashboard(),
       'Residente de Cirurgia' => const ResidentDashboardScreen(),
+      'Centro Cirúrgico' => SurgicalCenterConfirmationScreen(user: widget.user),
       _ => RoleConfirmationScreen(
           role: widget.role,
           user: widget.user,
@@ -58,16 +60,22 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.role),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-          ),
-        ],
-      ),
+      appBar: _shouldShowAppBar()
+          ? AppBar(
+              title: Text(widget.role),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: _logout,
+                ),
+              ],
+            )
+          : null,
       body: _buildRoleSpecificContent(),
     );
+  }
+
+  bool _shouldShowAppBar() {
+    return !widget.user.roles.contains('Centro Cirúrgico');
   }
 }
