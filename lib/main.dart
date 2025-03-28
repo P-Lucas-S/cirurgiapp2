@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cirurgiapp/src/core/constants/app_colors.dart';
 import 'package:cirurgiapp/src/features/auth/screens/login_screen.dart';
 import 'firebase_options.dart';
-import 'package:cirurgiapp/src/firestore_init/firestore_initializer.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,13 +12,8 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-
-    // Inicializa dados padrão do Firestore
-    await FirestoreInitializer().initializeProcedures();
   } catch (error) {
-    // Caso ocorra um erro na inicialização, ele é logado no console.
-    print('Erro na inicialização do Firebase/Firestore: $error');
-    // Aqui você pode também exibir uma tela de erro, se preferir.
+    print('Erro na inicialização do Firebase: $error');
   }
 
   runApp(const Cirurgiapp());
