@@ -18,6 +18,52 @@ class BloodBankConfirmationScreen extends StatefulWidget {
       _BloodBankConfirmationScreenState();
 }
 
+class _BloodBankConfirmation {
+  final BuildContext context;
+  final String surgeryId;
+  final Map<String, dynamic> surgery;
+
+  _BloodBankConfirmation({
+    required this.context,
+    required this.surgeryId,
+    required this.surgery,
+  });
+
+  Future<void> execute() async {
+    final requestedProducts = (surgery['bloodProducts'] as Map<String, dynamic>)
+        .map((key, value) => MapEntry(key, (value as num).toInt()));
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) =>
+          _ConfirmationDialog(requestedProducts: requestedProducts),
+    );
+
+    if (result == null || !context.mounted) return;
+
+    try {
+      final updateData = {
+        'confirmations.banco_sangue': result['confirmed'],
+        'status': result['confirmed'] ? 'confirmada' : 'negada',
+        'bloodProductsConfirmation': result['products'],
+        'denialReason': result['confirmed']
+            ? null
+            : 'Falta dos seguintes hemoderivados: ${result['missingProducts']}',
+      };
+
+      await FirebaseFirestore.instance
+          .collection('surgeries')
+          .doc(surgeryId)
+          .update(updateData);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro na confirmação: ${e.toString()}')),
+        );
+      }
+    }
+  }
+}
+
 class _BloodBankConfirmationScreenState
     extends State<BloodBankConfirmationScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -26,35 +72,6 @@ class _BloodBankConfirmationScreenState
       .collection('surgeries')
       .where('status', isEqualTo: 'pendente')
       .snapshots();
-
-  // Método de confirmação atualizado
-  Future<void> _confirmBloodProducts(
-      String surgeryId, Map<String, dynamic> surgery) async {
-    final requestedProducts =
-        Map<String, int>.from(surgery['bloodProducts'] ?? {});
-    final confirmedProducts = await showDialog<Map<String, int>>(
-      context: context,
-      builder: (context) =>
-          _ConfirmationDialog(requestedProducts: requestedProducts),
-    );
-
-    if (confirmedProducts == null || !mounted) return; //✅ Verificação added
-
-    try {
-      await _firestore.collection('surgeries').doc(surgeryId).update({
-        'confirmations.banco_sangue': true,
-        'bloodProductsConfirmation': confirmedProducts,
-        'confirmedBy.banco_sangue': widget.user.uid,
-        'timestamps.updatedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      if (mounted) {
-        //✅ Verificação added
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro na confirmação: ${e.toString()}')));
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,8 +124,11 @@ class _BloodBankConfirmationScreenState
       surgery: surgery,
       userRole: 'Banco de Sangue',
       canConfirm: true,
-      // Exemplo: ao confirmar, o SurgeryCard pode chamar esse método
-      onConfirm: () => _confirmBloodProducts(surgeryId, surgery),
+      onConfirm: () => _BloodBankConfirmation(
+        context: context,
+        surgeryId: surgeryId,
+        surgery: surgery,
+      ).execute(),
     );
   }
 
@@ -141,18 +161,21 @@ class _ConfirmationDialog extends StatefulWidget {
 }
 
 class _ConfirmationDialogState extends State<_ConfirmationDialog> {
-  final Map<String, int> _confirmedProducts = {};
+  final Map<String, bool> _confirmedProducts = {};
 
   @override
   void initState() {
     super.initState();
-    _confirmedProducts.addAll(widget.requestedProducts);
+    // Inicializa todos os produtos como não confirmados
+    _confirmedProducts.addAll(
+      widget.requestedProducts.map((key, value) => MapEntry(key, false)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Confirmar Produtos Sanguíneos'),
+      title: const Text('Confirmar Hemoderivados Disponíveis'),
       content: SizedBox(
         width: double.maxFinite,
         child: ListView(
@@ -167,24 +190,13 @@ class _ConfirmationDialogState extends State<_ConfirmationDialog> {
                 if (!snapshot.hasData) return const SizedBox.shrink();
 
                 final product = snapshot.data!.data() as Map<String, dynamic>;
-                final currentQty = _confirmedProducts[entry.key] ?? 0;
-
-                return ListTile(
+                return CheckboxListTile(
                   title: Text(product['name']),
-                  subtitle: Text('Solicitado: ${entry.value}'),
-                  trailing: SizedBox(
-                    width: 100,
-                    child: TextFormField(
-                      initialValue: currentQty.toString(),
-                      keyboardType: TextInputType.number,
-                      onChanged: (value) {
-                        final qty = int.tryParse(value) ?? 0;
-                        setState(() {
-                          _confirmedProducts[entry.key] = qty;
-                        });
-                      },
-                    ),
-                  ),
+                  subtitle: Text('Quantidade solicitada: ${entry.value}'),
+                  value: _confirmedProducts[entry.key] ?? false,
+                  onChanged: (value) => setState(() {
+                    _confirmedProducts[entry.key] = value ?? false;
+                  }),
                 );
               },
             );
@@ -197,8 +209,25 @@ class _ConfirmationDialogState extends State<_ConfirmationDialog> {
           child: const Text('Cancelar'),
         ),
         ElevatedButton(
-          onPressed: () => Navigator.pop(
-              context, _confirmedProducts..removeWhere((k, v) => v <= 0)),
+          onPressed: () {
+            final unconfirmed =
+                _confirmedProducts.entries.where((e) => !e.value).toList();
+
+            if (unconfirmed.isNotEmpty) {
+              final missingProducts = unconfirmed.map((e) => e.key).join(', ');
+
+              Navigator.pop(context, {
+                'confirmed': false,
+                'missingProducts': missingProducts,
+                'products': _confirmedProducts,
+              });
+            } else {
+              Navigator.pop(context, {
+                'confirmed': true,
+                'products': _confirmedProducts,
+              });
+            }
+          },
           child: const Text('Confirmar'),
         ),
       ],

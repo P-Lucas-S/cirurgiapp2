@@ -33,9 +33,22 @@ class SurgeryDetailsScreen extends StatelessWidget {
             _buildConfirmationStatus(),
             const SizedBox(height: 20),
             _buildStatusChip(),
+            _buildDenialReason(),
             if (_shouldShowCancelButton(context)) _buildCancelButton(context),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDenialReason() {
+    if (surgeryData['status'] != 'negada') return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Text(
+        'Motivo da negação: ${surgeryData['denialReason']}',
+        style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -70,12 +83,12 @@ class SurgeryDetailsScreen extends StatelessWidget {
         // Novos campos com listas de referências:
         _buildReferenceList(
           label: 'OPMe Utilizados:',
-          references: surgeryData['opme'] as List<dynamic>,
+          references: surgeryData['opme'],
           collection: 'opme',
         ),
         _buildReferenceList(
           label: 'Produtos Sanguíneos:',
-          references: surgeryData['bloodProducts'] as List<dynamic>,
+          references: surgeryData['bloodProducts'],
           collection: 'blood_products',
         ),
       ],
@@ -103,15 +116,24 @@ class SurgeryDetailsScreen extends StatelessWidget {
     );
   }
 
+  /// Método _buildReferenceList atualizado para aceitar listas ou mapas
   Widget _buildReferenceList({
     required String label,
-    required List<dynamic> references,
+    required dynamic references, // Alterado para dynamic
     required String collection,
   }) {
-    if (references.isEmpty) return const SizedBox.shrink();
+    // Verificar se é lista ou mapa e converter
+    List<dynamic> items = [];
+    if (references is List) {
+      items = references;
+    } else if (references is Map) {
+      items = references.keys.toList(); // Ou values, dependendo da estrutura
+    } else {
+      return const SizedBox.shrink();
+    }
 
     return FutureBuilder<List<String>>(
-      future: _getItemNames(references),
+      future: _getItemNames(items), // Usa a lista convertida
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const CircularProgressIndicator();
@@ -132,11 +154,15 @@ class SurgeryDetailsScreen extends StatelessWidget {
     );
   }
 
+  /// Método auxiliar atualizado para buscar nomes dos itens
   Future<List<String>> _getItemNames(List<dynamic> references) async {
     final List<String> names = [];
     for (var ref in references) {
-      final doc = await (ref as DocumentReference).get();
-      names.add(doc['name'] ?? 'Nome não encontrado');
+      if (ref is! DocumentReference) continue;
+      final doc = await ref.get();
+      if (doc.exists) {
+        names.add(doc['name'] ?? 'Sem nome');
+      }
     }
     return names;
   }

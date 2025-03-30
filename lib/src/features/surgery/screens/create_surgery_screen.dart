@@ -215,7 +215,8 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       'anesthesiologist': _selectedAnesthesiologistRef,
       'opme': _selectedOpme,
       // Atualizado para enviar o mapa de produtos sanguíneos
-      'bloodProducts': _selectedBloodProducts,
+      'bloodProducts':
+          _selectedBloodProducts.map((key, value) => MapEntry(key, value)),
       'needsICU': _needsICU,
       'dateTime': _selectedDateTime,
       'confirmations': {

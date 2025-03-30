@@ -12,16 +12,14 @@ class SurgeryCard extends StatelessWidget {
   final Map<String, dynamic> surgery;
   final bool canCancel;
   final bool canConfirm;
-  final String userRole; // Propriedade adicionada
-  final VoidCallback? onConfirm; // Novo callback para confirmação
+  final String userRole;
+  final VoidCallback? onConfirm;
 
   static const double _iconSize = 32;
   static const double _cardElevation = 3;
   static const EdgeInsets _cardMargin =
       EdgeInsets.symmetric(vertical: 8, horizontal: 16);
   static const EdgeInsets _contentPadding = EdgeInsets.all(16);
-
-  // Constante de salas cirúrgicas
   static const List<String> _surgeryRooms = [
     'Sala 1',
     'Sala 2',
@@ -36,7 +34,7 @@ class SurgeryCard extends StatelessWidget {
     required this.userRole,
     required this.canConfirm,
     this.canCancel = false,
-    this.onConfirm, // Parâmetro opcional
+    this.onConfirm,
   });
 
   @override
@@ -57,7 +55,7 @@ class SurgeryCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: ElevatedButton(
-                    onPressed: onConfirm, // Callback vinculado ao botão
+                    onPressed: onConfirm,
                     child: const Text('Confirmar'),
                   ),
                 ),
@@ -126,12 +124,42 @@ class SurgeryCard extends StatelessWidget {
           label: 'Anestesista:',
           reference: surgery['anesthesiologist'],
         ),
-        _buildReferenceItem(
-          label: 'Produto Sanguíneo:',
-          reference: surgery['bloodProducts'],
-        ),
+        _buildBloodProducts(surgery['bloodProducts']),
       ],
     );
+  }
+
+  Widget _buildBloodProducts(dynamic products) {
+    if (products is List) {
+      products = _convertLegacyListToMap(products);
+    }
+    final bloodProducts = (products as Map<String, dynamic>)
+        .map((key, value) => MapEntry(key, (value is num ? value.toInt() : 0)));
+
+    if (bloodProducts.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Produtos Sanguíneos:',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        ...bloodProducts.entries.map((entry) => FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance
+                  .collection('blood_products')
+                  .doc(entry.key)
+                  .get(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox.shrink();
+                final product = snapshot.data!.data() as Map<String, dynamic>;
+                return Text('${product['name']}: ${entry.value}');
+              },
+            )),
+      ],
+    );
+  }
+
+  Map<String, int> _convertLegacyListToMap(List<dynamic> list) {
+    return {for (var item in list) item.toString(): 1};
   }
 
   Widget _buildReferenceItem({
@@ -186,29 +214,15 @@ class SurgeryCard extends StatelessWidget {
     );
   }
 
-  // Método modificado para confirmação com base na role do usuário
   Widget _buildConfirmButton(BuildContext context) {
     if (!canConfirm) return const SizedBox.shrink();
 
-    final isBloodBank = userRole == 'Banco de Sangue';
-
-    if (isBloodBank) {
+    if (userRole == 'Banco de Sangue') {
       return IconButton(
-        icon: Icon(
-          surgery['confirmations']['banco_sangue'] ?? false
-              ? Icons.check_circle
-              : Icons.bloodtype_outlined,
-          color: surgery['confirmations']['banco_sangue'] ?? false
-              ? AppColors.success
-              : AppColors.secondary,
-        ),
-        onPressed: () => _showBloodBankDialog(context),
+        icon: _getConfirmationIcon(),
+        onPressed: () => _handleBloodBankConfirmation(context),
       );
-    }
-
-    final bool isSurgicalCenter = userRole == 'Centro Cirúrgico';
-
-    if (isSurgicalCenter) {
+    } else if (userRole == 'Centro Cirúrgico') {
       return IconButton(
         icon: Icon(
           surgery['confirmations']['centro_cirurgico'] ?? false
@@ -220,20 +234,37 @@ class SurgeryCard extends StatelessWidget {
         ),
         onPressed: () => _showSurgicalCenterDialog(context),
       );
+    } else if (userRole == 'Residente de Cirurgia') {
+      return IconButton(
+        icon: Icon(
+          surgery['confirmations']['residente'] ?? false
+              ? Icons.check_circle
+              : Icons.pending_actions,
+          color: surgery['confirmations']['residente'] ?? false
+              ? AppColors.success
+              : AppColors.secondary,
+        ),
+        onPressed: () => _toggleResidentConfirmation(context),
+      );
     }
 
-    // Confirmação padrão para Residentes
-    return IconButton(
-      icon: Icon(
-        surgery['confirmations']['residente'] ?? false
-            ? Icons.check_circle
-            : Icons.pending_actions,
-        color: surgery['confirmations']['residente'] ?? false
-            ? AppColors.success
-            : AppColors.secondary,
-      ),
-      onPressed: () => _toggleResidentConfirmation(context),
+    return const SizedBox.shrink();
+  }
+
+  Icon _getConfirmationIcon() {
+    final isConfirmed = surgery['confirmations']['banco_sangue'] ?? false;
+    return Icon(
+      isConfirmed ? Icons.check_circle : Icons.bloodtype_outlined,
+      color: isConfirmed ? AppColors.success : AppColors.secondary,
     );
+  }
+
+  void _handleBloodBankConfirmation(BuildContext context) {
+    _BloodBankConfirmation(
+      context: context,
+      surgeryId: surgeryId,
+      surgery: surgery,
+    ).execute();
   }
 
   void _showSurgicalCenterDialog(BuildContext context) {
@@ -311,98 +342,6 @@ class SurgeryCard extends StatelessWidget {
     );
   }
 
-  // Método refatorado para confirmação de hemoderivados
-  void _showBloodBankDialog(BuildContext context) {
-    final bloodProducts = (surgery['bloodProducts'] as List<dynamic>?) ?? [];
-    final confirmations =
-        (surgery['bloodProductsConfirmation'] as Map<String, dynamic>?) ?? {};
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Confirmar Hemoderivados'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                ...bloodProducts.map((productRef) {
-                  final docRef = productRef as DocumentReference;
-                  return FutureBuilder(
-                    future: docRef.get(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) return const SizedBox();
-                      final product =
-                          snapshot.data!.data() as Map<String, dynamic>;
-                      return _buildBloodProductItem(
-                        product['name'],
-                        (confirmations[docRef.id] as bool?) ?? false,
-                        (value) => confirmations[docRef.id] = value,
-                      );
-                    },
-                  );
-                }),
-                const SizedBox(height: 20),
-                _buildQuantityField(confirmations),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () =>
-                  _saveBloodBankConfirmation(context, confirmations),
-              child: const Text('Confirmar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBloodProductItem(
-      String name, bool value, Function(bool) onChanged) {
-    return SwitchListTile(
-      title: Text(name),
-      value: value,
-      activeColor: AppColors.success,
-      onChanged: (val) => onChanged(val),
-    );
-  }
-
-  Widget _buildQuantityField(Map<String, dynamic> confirmations) {
-    return TextFormField(
-      decoration: InputDecoration(
-        labelText: 'Quantidade Disponível',
-        border: OutlineInputBorder(),
-      ),
-      keyboardType: TextInputType.number,
-      onChanged: (value) => confirmations['quantity'] = int.tryParse(value),
-    );
-  }
-
-  Future<void> _saveBloodBankConfirmation(
-      BuildContext context, Map<String, dynamic> confirmations) async {
-    try {
-      await SurgeryService().confirmRequirement(
-        surgeryId,
-        'banco_sangue',
-        FirebaseAuth.instance.currentUser!.uid,
-        true,
-        additionalData: {'bloodProductsConfirmation': confirmations},
-      );
-      if (context.mounted) Navigator.pop(context);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: ${e.toString()}')),
-        );
-      }
-    }
-  }
-
   void _toggleResidentConfirmation(BuildContext context) {
     final newValue = !(surgery['confirmations']['residente'] ?? false);
     showDialog(
@@ -444,13 +383,20 @@ class SurgeryCard extends StatelessWidget {
     );
   }
 
+  // Método refatorado com sanitização dos dados
   void _navigateToDetails(BuildContext context) {
+    // Criar cópia segura dos dados
+    final safeSurgeryData = Map<String, dynamic>.from(surgery)
+      ..['opme'] = surgery['opme'] is List ? surgery['opme'] : []
+      ..['bloodProducts'] =
+          surgery['bloodProducts'] is Map ? surgery['bloodProducts'] : {};
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => SurgeryDetailsScreen(
           surgeryId: surgeryId,
-          surgeryData: surgery,
+          surgeryData: safeSurgeryData, // Usar dados sanitizados
         ),
       ),
     );
@@ -540,5 +486,168 @@ class SurgeryCard extends StatelessWidget {
       debugPrint('Erro ao parsear referência: $e');
       return null;
     }
+  }
+}
+
+class _BloodBankConfirmation {
+  final BuildContext context;
+  final String surgeryId;
+  final Map<String, dynamic> surgery;
+
+  _BloodBankConfirmation({
+    required this.context,
+    required this.surgeryId,
+    required this.surgery,
+  });
+
+  Future<void> execute() async {
+    final bloodProducts = (surgery['bloodProducts'] as Map<String, dynamic>)
+        .map((key, value) => MapEntry(key, (value as num).toInt()));
+    final result = await _showConfirmationDialog(bloodProducts);
+
+    if (result == null || !context.mounted) return;
+
+    await _updateSurgeryStatus(result);
+  }
+
+  Future<Map<String, dynamic>?> _showConfirmationDialog(
+      Map<String, int> requestedProducts) async {
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _BloodProductsDialog(
+        requestedProducts: requestedProducts,
+      ),
+    );
+  }
+
+  Future<void> _updateSurgeryStatus(Map<String, dynamic> result) async {
+    try {
+      final updateData = {
+        'confirmations.banco_sangue': result['confirmed'],
+        'status': result['status'],
+        'bloodProductsConfirmation': result['products'],
+        if (result['denialReason'] != null)
+          'denialReason': result['denialReason'],
+      };
+
+      await FirebaseFirestore.instance
+          .collection('surgeries')
+          .doc(surgeryId)
+          .update(updateData);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro na confirmação: ${e.toString()}')),
+        );
+      }
+    }
+  }
+}
+
+class _BloodProductsDialog extends StatefulWidget {
+  final Map<String, int> requestedProducts;
+
+  const _BloodProductsDialog({required this.requestedProducts});
+
+  @override
+  State<_BloodProductsDialog> createState() => _BloodProductsDialogState();
+}
+
+class _BloodProductsDialogState extends State<_BloodProductsDialog> {
+  final Map<String, bool> _confirmedProducts = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _initProducts();
+  }
+
+  void _initProducts() {
+    _confirmedProducts.addAll(
+      widget.requestedProducts.map((key, value) => MapEntry(key, false)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Confirmar Hemoderivados Disponíveis'),
+      content: _buildProductsList(),
+      actions: _buildDialogActions(),
+    );
+  }
+
+  Widget _buildProductsList() {
+    return SizedBox(
+      width: double.maxFinite,
+      child: ListView(
+        shrinkWrap: true,
+        children:
+            widget.requestedProducts.entries.map(_buildProductItem).toList(),
+      ),
+    );
+  }
+
+  Widget _buildProductItem(MapEntry<String, int> entry) {
+    return FutureBuilder<DocumentSnapshot>(
+      future: _getProductDetails(entry.key),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final product = snapshot.data!.data() as Map<String, dynamic>;
+        return CheckboxListTile(
+          title: Text(product['name']),
+          subtitle: Text('Quantidade solicitada: ${entry.value}'),
+          value: _confirmedProducts[entry.key] ?? false,
+          onChanged: (value) => _updateProductStatus(entry.key, value),
+        );
+      },
+    );
+  }
+
+  Future<DocumentSnapshot> _getProductDetails(String productId) {
+    return FirebaseFirestore.instance
+        .collection('blood_products')
+        .doc(productId)
+        .get();
+  }
+
+  void _updateProductStatus(String productId, bool? value) {
+    setState(() => _confirmedProducts[productId] = value ?? false);
+  }
+
+  List<Widget> _buildDialogActions() {
+    return [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancelar'),
+      ),
+      ElevatedButton(
+        onPressed: () => _handleConfirmation(),
+        child: const Text('Confirmar'),
+      ),
+    ];
+  }
+
+  void _handleConfirmation() {
+    final unconfirmedProducts = _confirmedProducts.entries
+        .where((e) => !e.value)
+        .map((e) => e.key)
+        .toList();
+
+    final result = {
+      'products': _confirmedProducts,
+      'confirmed': unconfirmedProducts.isEmpty,
+      if (unconfirmedProducts.isNotEmpty)
+        'denialReason': _buildDenialReason(unconfirmedProducts),
+      'status': unconfirmedProducts.isEmpty ? 'confirmada' : 'negada',
+    };
+
+    Navigator.pop(context, result);
+  }
+
+  String _buildDenialReason(List<String> missingProducts) {
+    final products = missingProducts.join(', ');
+    return 'Falta dos seguintes hemoderivados: $products';
   }
 }
