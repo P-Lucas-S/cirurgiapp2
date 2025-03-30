@@ -141,8 +141,10 @@ class SurgeryCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Produtos Sanguíneos:',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text(
+          'Produtos Sanguíneos:',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         ...bloodProducts.entries.map((entry) => FutureBuilder<DocumentSnapshot>(
               future: FirebaseFirestore.instance
                   .collection('blood_products')
@@ -214,41 +216,50 @@ class SurgeryCard extends StatelessWidget {
     );
   }
 
+  // Método _buildConfirmButton refatorado utilizando switch expression com caso UTI
   Widget _buildConfirmButton(BuildContext context) {
     if (!canConfirm) return const SizedBox.shrink();
 
-    if (userRole == 'Banco de Sangue') {
-      return IconButton(
-        icon: _getConfirmationIcon(),
-        onPressed: () => _handleBloodBankConfirmation(context),
-      );
-    } else if (userRole == 'Centro Cirúrgico') {
-      return IconButton(
-        icon: Icon(
-          surgery['confirmations']['centro_cirurgico'] ?? false
-              ? Icons.check_circle
-              : Icons.meeting_room_outlined,
-          color: surgery['confirmations']['centro_cirurgico'] ?? false
-              ? AppColors.success
-              : AppColors.secondary,
+    return switch (userRole) {
+      'Banco de Sangue' => IconButton(
+          icon: _getConfirmationIcon(),
+          onPressed: () => _handleBloodBankConfirmation(context),
         ),
-        onPressed: () => _showSurgicalCenterDialog(context),
-      );
-    } else if (userRole == 'Residente de Cirurgia') {
-      return IconButton(
-        icon: Icon(
-          surgery['confirmations']['residente'] ?? false
-              ? Icons.check_circle
-              : Icons.pending_actions,
-          color: surgery['confirmations']['residente'] ?? false
-              ? AppColors.success
-              : AppColors.secondary,
+      'Centro Cirúrgico' => IconButton(
+          icon: Icon(
+            (surgery['confirmations']['centro_cirurgico'] ?? false)
+                ? Icons.check_circle
+                : Icons.meeting_room_outlined,
+            color: (surgery['confirmations']['centro_cirurgico'] ?? false)
+                ? AppColors.success
+                : AppColors.secondary,
+          ),
+          onPressed: () => _showSurgicalCenterDialog(context),
         ),
-        onPressed: () => _toggleResidentConfirmation(context),
-      );
-    }
-
-    return const SizedBox.shrink();
+      'Residente de Cirurgia' => IconButton(
+          icon: Icon(
+            (surgery['confirmations']['residente'] ?? false)
+                ? Icons.check_circle
+                : Icons.pending_actions,
+            color: (surgery['confirmations']['residente'] ?? false)
+                ? AppColors.success
+                : AppColors.secondary,
+          ),
+          onPressed: () => _toggleResidentConfirmation(context),
+        ),
+      'UTI' => IconButton(
+          icon: Icon(
+            (surgery['confirmations']['uti'] ?? false)
+                ? Icons.check_circle
+                : Icons.emergency,
+            color: (surgery['confirmations']['uti'] ?? false)
+                ? AppColors.success
+                : AppColors.secondary,
+          ),
+          onPressed: onConfirm,
+        ),
+      _ => const SizedBox.shrink(),
+    };
   }
 
   Icon _getConfirmationIcon() {
@@ -296,10 +307,12 @@ class SurgeryCard extends StatelessWidget {
                   filled: true,
                 ),
                 items: _surgeryRooms
-                    .map((room) => DropdownMenuItem(
-                          value: room,
-                          child: Text(room),
-                        ))
+                    .map(
+                      (room) => DropdownMenuItem(
+                        value: room,
+                        child: Text(room),
+                      ),
+                    )
                     .toList(),
                 onChanged: (value) => setState(() => selectedRoom = value),
               ),

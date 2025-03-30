@@ -4,14 +4,17 @@ import 'package:cirurgiapp/src/services/auth_service.dart';
 import 'package:cirurgiapp/src/features/home/screens/role_confirmation_screen.dart';
 import 'package:cirurgiapp/src/features/roles/screens/surgical_center/surgical_center_confirmation.dart';
 import 'package:cirurgiapp/src/features/roles/screens/blood_bank/blood_bank_dashboard_screen.dart';
+import 'package:cirurgiapp/src/features/roles/screens/uti/uti_confirmation_screen.dart';
 
-// Stub para ResidentDashboardScreen, ajuste conforme a implementação real.
 class ResidentDashboardScreen extends StatelessWidget {
-  const ResidentDashboardScreen({super.key});
+  final HospitalUser user;
+
+  const ResidentDashboardScreen({Key? key, required this.user})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('Dashboard do Residente de Cirurgia'));
+    return Center(child: Text('Dashboard do Residente de Cirurgia'));
   }
 }
 
@@ -20,10 +23,10 @@ class RoleHomeScreen extends StatefulWidget {
   final HospitalUser user;
 
   const RoleHomeScreen({
-    super.key,
+    Key? key,
     required this.role,
     required this.user,
-  });
+  }) : super(key: key);
 
   @override
   State<RoleHomeScreen> createState() => _RoleHomeScreenState();
@@ -49,10 +52,10 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
 
     return switch (widget.role) {
       'NIR' => _buildNIRDashboard(),
-      'Residente de Cirurgia' => const ResidentDashboardScreen(),
+      'Residente de Cirurgia' => ResidentDashboardScreen(user: widget.user),
       'Centro Cirúrgico' => SurgicalCenterConfirmationScreen(user: widget.user),
-      'Banco de Sangue' =>
-        BloodBankConfirmationScreen(user: widget.user), // Novo
+      'Banco de Sangue' => BloodBankConfirmationScreen(user: widget.user),
+      'UTI' => UTIConfirmationScreen(user: widget.user),
       _ => RoleConfirmationScreen(role: widget.role, user: widget.user),
     };
   }
