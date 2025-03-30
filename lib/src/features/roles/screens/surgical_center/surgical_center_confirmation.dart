@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cirurgiapp/src/core/constants/app_colors.dart' as core_colors;
 import 'package:cirurgiapp/src/components/style_constants/typography.dart';
 import 'package:cirurgiapp/src/core/models/user_model.dart';
-// import 'package:intl/intl.dart';
 import 'package:cirurgiapp/src/features/surgery/widgets/surgery_card.dart'; // Certifique-se de que o caminho esteja correto
 
 class SurgicalCenterConfirmationScreen extends StatefulWidget {
@@ -158,6 +157,9 @@ class _SurgicalCenterConfirmationScreenState
                   setState(() => selectedRoom = value);
                   _updateSurgeryRoom(surgeryId, value);
                 }),
+                const SizedBox(height: 15),
+                // Novo widget para exibir os produtos sanguíneos
+                _buildBloodProducts(surgery),
               ],
             ),
             actions: [
@@ -228,6 +230,29 @@ class _SurgicalCenterConfirmationScreenState
               ))
           .toList(),
       onChanged: onChanged,
+    );
+  }
+
+  // Novo widget para exibir os produtos sanguíneos
+  Widget _buildBloodProducts(Map<String, dynamic> surgery) {
+    final products = surgery['bloodProducts'] as Map<String, dynamic>? ?? {};
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Produtos Sanguíneos:'),
+        ...products.entries.map((entry) => FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance
+                  .collection('blood_products')
+                  .doc(entry.key)
+                  .get(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox.shrink();
+                final product = snapshot.data!.data() as Map<String, dynamic>;
+                return Text('${product['name']}: ${entry.value}');
+              },
+            )),
+      ],
     );
   }
 }

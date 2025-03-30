@@ -90,6 +90,7 @@ class NIRDashboardScreen extends StatelessWidget {
           surgeryId: doc.id,
           userRole: 'NIR',
           canCancel: true,
+          canConfirm: false,
         );
       },
     );

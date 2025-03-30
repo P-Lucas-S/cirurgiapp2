@@ -3,6 +3,7 @@ import 'package:cirurgiapp/src/core/models/user_model.dart';
 import 'package:cirurgiapp/src/services/auth_service.dart';
 import 'package:cirurgiapp/src/features/home/screens/role_confirmation_screen.dart';
 import 'package:cirurgiapp/src/features/roles/screens/surgical_center/surgical_center_confirmation.dart';
+import 'package:cirurgiapp/src/features/roles/screens/blood_bank/blood_bank_confirmation_screen.dart';
 
 // Stub para ResidentDashboardScreen, ajuste conforme a implementação real.
 class ResidentDashboardScreen extends StatelessWidget {
@@ -50,10 +51,9 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
       'NIR' => _buildNIRDashboard(),
       'Residente de Cirurgia' => const ResidentDashboardScreen(),
       'Centro Cirúrgico' => SurgicalCenterConfirmationScreen(user: widget.user),
-      _ => RoleConfirmationScreen(
-          role: widget.role,
-          user: widget.user,
-        ),
+      'Banco de Sangue' =>
+        BloodBankConfirmationScreen(user: widget.user), // Novo
+      _ => RoleConfirmationScreen(role: widget.role, user: widget.user),
     };
   }
 

@@ -51,6 +51,24 @@ class SurgeryService {
     }
   }
 
+  Future<void> confirmRequirement(
+    String surgeryId,
+    String field,
+    String userId,
+    bool value, {
+    Map<String, dynamic>? additionalData,
+  }) async {
+    final updateData = {
+      'confirmations.$field': value,
+      'confirmedBy.$field': userId,
+      'timestamps.updatedAt': FieldValue.serverTimestamp(),
+      if (additionalData != null)
+        'bloodProductsConfirmation': Map<String, dynamic>.from(additionalData),
+    };
+
+    await _firestore.collection('surgeries').doc(surgeryId).update(updateData);
+  }
+
   Map<String, bool> _initConfirmations() {
     return {
       'residente': false,
@@ -69,20 +87,6 @@ class SurgeryService {
     };
   }
 
-  Future<void> confirmRequirement(
-      String surgeryId, String field, String userId, bool value) async {
-    try {
-      await _firestore.collection('surgeries').doc(surgeryId).update({
-        'confirmations.$field': value,
-        'confirmedBy.$field': userId,
-        'timestamps.updatedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      _logger.e('Erro na confirmação: $e');
-      rethrow;
-    }
-  }
-
   Future<void> cancelSurgery(String surgeryId) async {
     try {
       await _firestore.collection('surgeries').doc(surgeryId).update({
@@ -98,11 +102,12 @@ class SurgeryService {
   Future<void> confirmResidentPreOp(
       String surgeryId, String userId, bool value) async {
     try {
-      await _firestore.collection('surgeries').doc(surgeryId).update({
-        'confirmations.residente': value,
-        'confirmedBy.residente': userId,
-        'timestamps.updatedAt': FieldValue.serverTimestamp(),
-      });
+      await confirmRequirement(
+        surgeryId,
+        'residente',
+        userId,
+        value,
+      );
     } catch (e) {
       _logger.e('Erro na confirmação do residente: $e');
       rethrow;

@@ -26,11 +26,13 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   DocumentReference? _selectedSurgeonRef;
   DocumentReference? _selectedAnesthesiologistRef;
 
-  // Seleção múltipla
+  // Seleção múltipla de OPME (permanece como lista)
   List<DocumentReference> _selectedOpme = [];
-  List<DocumentReference> _selectedBloodProducts = [];
 
-  // Agora usando DateTime com data e hora
+  // Produtos sanguíneos: usando mapa para armazenar (id do produto -> quantidade)
+  Map<String, int> _selectedBloodProducts = {};
+
+  // Data e hora da cirurgia
   DateTime _selectedDateTime = DateTime.now();
   bool _needsICU = false;
   final bool _residentConfirmation = false;
@@ -108,21 +110,64 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
+  // Método atualizado para seleção de produtos sanguíneos, retornando um mapa (id -> quantidade)
   Future<void> _selectBloodProducts() async {
-    final selectedIds = await _medicalService.showMultiSelectionDialog(
-      context: context,
-      collection: 'blood_products',
-    );
-
-    if (selectedIds != null && selectedIds.isNotEmpty) {
-      final docRefs = selectedIds
-          .map((id) =>
-              FirebaseFirestore.instance.collection('blood_products').doc(id))
-          .toList();
+    final selected =
+        await _medicalService.showBloodProductSelectionDialog(context);
+    if (selected != null) {
       setState(() {
-        _selectedBloodProducts = docRefs;
+        _selectedBloodProducts = selected;
       });
     }
+  }
+
+  // Widget para exibir os produtos sanguíneos selecionados
+  Widget _buildBloodProductsField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Produtos Sanguíneos',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        InkWell(
+          onTap: _selectBloodProducts,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: _selectedBloodProducts.isEmpty
+                ? const Text('Clique para selecionar produtos')
+                : Wrap(
+                    spacing: 8,
+                    children: _selectedBloodProducts.entries.map((entry) {
+                      return FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance
+                            .collection('blood_products')
+                            .doc(entry.key)
+                            .get(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData) {
+                            final product =
+                                snapshot.data!.data() as Map<String, dynamic>;
+                            return Chip(
+                              label: Text('${product['name']}: ${entry.value}'),
+                              onDeleted: () => setState(() {
+                                _selectedBloodProducts.remove(entry.key);
+                              }),
+                            );
+                          }
+                          return const CircularProgressIndicator();
+                        },
+                      );
+                    }).toList(),
+                  ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _selectDateTime() async {
@@ -169,12 +214,14 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       'surgeon': _selectedSurgeonRef,
       'anesthesiologist': _selectedAnesthesiologistRef,
       'opme': _selectedOpme,
+      // Atualizado para enviar o mapa de produtos sanguíneos
       'bloodProducts': _selectedBloodProducts,
       'needsICU': _needsICU,
       'dateTime': _selectedDateTime,
       'confirmations': {
         'residente': _residentConfirmation,
       },
+      'bloodProductsConfirmation': {},
     };
 
     try {
@@ -327,13 +374,8 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 onTap: _selectOpme,
               ),
               const SizedBox(height: 15),
-              // Seleção múltipla de Produtos Sanguíneos
-              _buildMultiSelectField(
-                context: context,
-                label: 'Produtos Sanguíneos',
-                items: _selectedBloodProducts,
-                onTap: _selectBloodProducts,
-              ),
+              // Seleção de produtos sanguíneos (novo widget)
+              _buildBloodProductsField(),
               const SizedBox(height: 15),
               // Necessidade de UTI
               CheckboxListTile(

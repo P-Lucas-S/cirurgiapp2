@@ -209,11 +209,119 @@ class MedicalDataService {
     return selectedIds;
   }
 
+  /// Novo método para seleção de produtos sanguíneos com quantidade
+  Future<Map<String, int>?> showBloodProductSelectionDialog(
+      BuildContext context) async {
+    Map<String, int> selectedProducts = {};
+    String searchQuery = '';
+
+    return await showDialog<Map<String, int>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Selecionar Produtos Sanguíneos'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Buscar produto',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (value) =>
+                        setState(() => searchQuery = value.trim()),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream:
+                          _firestore.collection('blood_products').snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+                        final docs =
+                            _filterDocs(snapshot.data!.docs, searchQuery);
+                        return ListView.builder(
+                          itemCount: docs.length,
+                          itemBuilder: (context, index) {
+                            final doc = docs[index];
+                            final productId = doc.id;
+                            final productName = doc['name'] as String;
+                            final currentQty = selectedProducts[productId] ?? 0;
+                            return ListTile(
+                              title: Text(productName),
+                              trailing: SizedBox(
+                                width: 100,
+                                child: TextFormField(
+                                  initialValue: currentQty > 0
+                                      ? currentQty.toString()
+                                      : '',
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Qtd',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (value) {
+                                    final qty = int.tryParse(value) ?? 0;
+                                    setState(() {
+                                      if (qty > 0) {
+                                        selectedProducts[productId] = qty;
+                                      } else {
+                                        selectedProducts.remove(productId);
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, selectedProducts),
+                child: const Text('Confirmar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   // Métodos auxiliares
+
   List<QueryDocumentSnapshot<Object?>> _sortAndFilterDocs(
-    List<QueryDocumentSnapshot> docs,
-    String searchQuery,
-  ) {
+      List<QueryDocumentSnapshot> docs, String searchQuery) {
+    final filtered = docs.where((doc) {
+      final name = doc['name'].toString().toLowerCase();
+      return name.contains(searchQuery.toLowerCase());
+    }).toList();
+
+    filtered.sort((a, b) => a['name']
+        .toString()
+        .toLowerCase()
+        .compareTo(b['name'].toString().toLowerCase()));
+
+    return filtered;
+  }
+
+  /// Método auxiliar para filtrar (e ordenar) documentos com base na query.
+  List<QueryDocumentSnapshot<Object?>> _filterDocs(
+      List<QueryDocumentSnapshot> docs, String searchQuery) {
     final filtered = docs.where((doc) {
       final name = doc['name'].toString().toLowerCase();
       return name.contains(searchQuery.toLowerCase());

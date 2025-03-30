@@ -13,6 +13,7 @@ class SurgeryCard extends StatelessWidget {
   final bool canCancel;
   final bool canConfirm;
   final String userRole; // Propriedade adicionada
+  final VoidCallback? onConfirm; // Novo callback para confirmação
 
   static const double _iconSize = 32;
   static const double _cardElevation = 3;
@@ -29,13 +30,14 @@ class SurgeryCard extends StatelessWidget {
   ];
 
   const SurgeryCard({
-    Key? key,
+    super.key,
     required this.surgeryId,
     required this.surgery,
-    required this.userRole, // Parâmetro obrigatório adicionado
-    this.canConfirm = false,
+    required this.userRole,
+    required this.canConfirm,
     this.canCancel = false,
-  }) : super(key: key);
+    this.onConfirm, // Parâmetro opcional
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +49,20 @@ class SurgeryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: _contentPadding,
-          child: _buildCardContent(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildCardContent(context),
+              if (canConfirm)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: ElevatedButton(
+                    onPressed: onConfirm, // Callback vinculado ao botão
+                    child: const Text('Confirmar'),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -175,7 +190,22 @@ class SurgeryCard extends StatelessWidget {
   Widget _buildConfirmButton(BuildContext context) {
     if (!canConfirm) return const SizedBox.shrink();
 
-    // Verifica se a role do usuário é 'Centro Cirúrgico'
+    final isBloodBank = userRole == 'Banco de Sangue';
+
+    if (isBloodBank) {
+      return IconButton(
+        icon: Icon(
+          surgery['confirmations']['banco_sangue'] ?? false
+              ? Icons.check_circle
+              : Icons.bloodtype_outlined,
+          color: surgery['confirmations']['banco_sangue'] ?? false
+              ? AppColors.success
+              : AppColors.secondary,
+        ),
+        onPressed: () => _showBloodBankDialog(context),
+      );
+    }
+
     final bool isSurgicalCenter = userRole == 'Centro Cirúrgico';
 
     if (isSurgicalCenter) {
@@ -206,7 +236,6 @@ class SurgeryCard extends StatelessWidget {
     );
   }
 
-  // Novo método para mostrar o diálogo do Centro Cirúrgico
   void _showSurgicalCenterDialog(BuildContext context) {
     String? selectedRoom = surgery['surgeryRoom'];
     bool isConfirmed = surgery['confirmations']['centro_cirurgico'] ?? false;
@@ -253,7 +282,6 @@ class SurgeryCard extends StatelessWidget {
             TextButton(
               onPressed: () async {
                 try {
-                  // Atualiza a confirmação e a sala selecionada
                   await SurgeryService().confirmRequirement(
                     surgeryId,
                     'centro_cirurgico',
@@ -281,6 +309,98 @@ class SurgeryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // Método refatorado para confirmação de hemoderivados
+  void _showBloodBankDialog(BuildContext context) {
+    final bloodProducts = (surgery['bloodProducts'] as List<dynamic>?) ?? [];
+    final confirmations =
+        (surgery['bloodProductsConfirmation'] as Map<String, dynamic>?) ?? {};
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Confirmar Hemoderivados'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                ...bloodProducts.map((productRef) {
+                  final docRef = productRef as DocumentReference;
+                  return FutureBuilder(
+                    future: docRef.get(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const SizedBox();
+                      final product =
+                          snapshot.data!.data() as Map<String, dynamic>;
+                      return _buildBloodProductItem(
+                        product['name'],
+                        (confirmations[docRef.id] as bool?) ?? false,
+                        (value) => confirmations[docRef.id] = value,
+                      );
+                    },
+                  );
+                }),
+                const SizedBox(height: 20),
+                _buildQuantityField(confirmations),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  _saveBloodBankConfirmation(context, confirmations),
+              child: const Text('Confirmar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBloodProductItem(
+      String name, bool value, Function(bool) onChanged) {
+    return SwitchListTile(
+      title: Text(name),
+      value: value,
+      activeColor: AppColors.success,
+      onChanged: (val) => onChanged(val),
+    );
+  }
+
+  Widget _buildQuantityField(Map<String, dynamic> confirmations) {
+    return TextFormField(
+      decoration: InputDecoration(
+        labelText: 'Quantidade Disponível',
+        border: OutlineInputBorder(),
+      ),
+      keyboardType: TextInputType.number,
+      onChanged: (value) => confirmations['quantity'] = int.tryParse(value),
+    );
+  }
+
+  Future<void> _saveBloodBankConfirmation(
+      BuildContext context, Map<String, dynamic> confirmations) async {
+    try {
+      await SurgeryService().confirmRequirement(
+        surgeryId,
+        'banco_sangue',
+        FirebaseAuth.instance.currentUser!.uid,
+        true,
+        additionalData: {'bloodProductsConfirmation': confirmations},
+      );
+      if (context.mounted) Navigator.pop(context);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   void _toggleResidentConfirmation(BuildContext context) {
