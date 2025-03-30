@@ -45,8 +45,6 @@ class MedicalDataService {
                       if (!snapshot.hasData) {
                         return const Center(child: CircularProgressIndicator());
                       }
-
-                      // Ordenar e filtrar
                       final sortedDocs = _sortAndFilterDocs(
                         snapshot.data!.docs,
                         searchQuery,
@@ -54,7 +52,6 @@ class MedicalDataService {
 
                       return Column(
                         children: [
-                          // Botão de adicionar novo se não existir
                           if (searchQuery.isNotEmpty &&
                               !_existsInDocs(sortedDocs, searchQuery))
                             ListTile(
@@ -72,7 +69,6 @@ class MedicalDataService {
                                 }
                               },
                             ),
-                          // Lista de resultados
                           Expanded(
                             child: ListView.builder(
                               itemCount: sortedDocs.length,
@@ -136,8 +132,6 @@ class MedicalDataService {
                       if (!snapshot.hasData) {
                         return const Center(child: CircularProgressIndicator());
                       }
-
-                      // Ordenar e filtrar
                       final sortedDocs = _sortAndFilterDocs(
                         snapshot.data!.docs,
                         searchQuery,
@@ -145,7 +139,6 @@ class MedicalDataService {
 
                       return Column(
                         children: [
-                          // Opção para adicionar novo item
                           if (searchQuery.isNotEmpty &&
                               !_existsInDocs(sortedDocs, searchQuery))
                             ListTile(
@@ -164,7 +157,6 @@ class MedicalDataService {
                                 }
                               },
                             ),
-                          // Lista de itens existentes
                           Expanded(
                             child: ListView.builder(
                               itemCount: sortedDocs.length,
@@ -209,7 +201,7 @@ class MedicalDataService {
     return selectedIds;
   }
 
-  /// Novo método para seleção de produtos sanguíneos com quantidade
+  /// Método para seleção de produtos sanguíneos com quantidade
   Future<Map<String, int>?> showBloodProductSelectionDialog(
       BuildContext context) async {
     Map<String, int> selectedProducts = {};
@@ -302,6 +294,88 @@ class MedicalDataService {
     );
   }
 
+  /// Novo método para seleção de materiais OPME com quantidade e especificação
+  Future<List<Map<String, dynamic>>?> showOpmeSelectionDialog(
+      BuildContext context) async {
+    List<Map<String, dynamic>> selectedMaterials = [];
+    String searchQuery = '';
+
+    return await showDialog<List<Map<String, dynamic>>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Selecionar Materiais OPME'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Buscar material',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (value) =>
+                        setState(() => searchQuery = value.trim()),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: _firestore.collection('opme').snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+                        final docs =
+                            _filterDocs(snapshot.data!.docs, searchQuery);
+                        return ListView.builder(
+                          itemCount: docs.length,
+                          itemBuilder: (context, index) {
+                            final doc = docs[index];
+                            return ListTile(
+                              title: Text(doc['name']),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.add),
+                                onPressed: () async {
+                                  final result =
+                                      await showDialog<Map<String, dynamic>>(
+                                    context: context,
+                                    builder: (ctx) =>
+                                        _OpmeQuantityDialog(doc: doc),
+                                  );
+                                  if (result != null) {
+                                    setState(() {
+                                      selectedMaterials.add(result);
+                                    });
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, selectedMaterials),
+                child: const Text('Confirmar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   // Métodos auxiliares
 
   List<QueryDocumentSnapshot<Object?>> _sortAndFilterDocs(
@@ -319,7 +393,6 @@ class MedicalDataService {
     return filtered;
   }
 
-  /// Método auxiliar para filtrar (e ordenar) documentos com base na query.
   List<QueryDocumentSnapshot<Object?>> _filterDocs(
       List<QueryDocumentSnapshot> docs, String searchQuery) {
     final filtered = docs.where((doc) {
@@ -382,5 +455,65 @@ class MedicalDataService {
   Future<String> getItemName(DocumentReference docRef) async {
     final doc = await docRef.get();
     return doc['name'] ?? 'Nome não encontrado';
+  }
+}
+
+/// Widget para especificar a quantidade e a especificação do material OPME selecionado
+class _OpmeQuantityDialog extends StatefulWidget {
+  final QueryDocumentSnapshot doc;
+
+  const _OpmeQuantityDialog({required this.doc});
+
+  @override
+  State<_OpmeQuantityDialog> createState() => _OpmeQuantityDialogState();
+}
+
+class _OpmeQuantityDialogState extends State<_OpmeQuantityDialog> {
+  final _quantityController = TextEditingController();
+  final _specificationController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Especificar ${widget.doc['name']}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextFormField(
+            controller: _quantityController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Quantidade',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: _specificationController,
+            decoration: const InputDecoration(
+              labelText: 'Especificação (opcional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_quantityController.text.isEmpty) return;
+            Navigator.pop(context, {
+              'materialId': widget.doc.id,
+              'quantity': int.parse(_quantityController.text),
+              'specification': _specificationController.text,
+            });
+          },
+          child: const Text('Adicionar'),
+        ),
+      ],
+    );
   }
 }

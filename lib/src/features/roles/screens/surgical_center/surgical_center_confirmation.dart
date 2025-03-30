@@ -1,4 +1,3 @@
-// lib/src/features/roles/screens/surgical_center/surgical_center_confirmation.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cirurgiapp/src/core/constants/app_colors.dart' as core_colors;

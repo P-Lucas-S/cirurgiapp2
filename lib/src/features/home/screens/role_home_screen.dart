@@ -5,6 +5,7 @@ import 'package:cirurgiapp/src/features/home/screens/role_confirmation_screen.da
 import 'package:cirurgiapp/src/features/roles/screens/surgical_center/surgical_center_confirmation.dart';
 import 'package:cirurgiapp/src/features/roles/screens/blood_bank/blood_bank_dashboard_screen.dart';
 import 'package:cirurgiapp/src/features/roles/screens/uti/uti_confirmation_screen.dart';
+import 'package:cirurgiapp/src/features/roles/screens/opme/opme_confirmation_screen.dart';
 
 class ResidentDashboardScreen extends StatelessWidget {
   final HospitalUser user;
@@ -56,6 +57,8 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
       'Centro Cirúrgico' => SurgicalCenterConfirmationScreen(user: widget.user),
       'Banco de Sangue' => BloodBankConfirmationScreen(user: widget.user),
       'UTI' => UTIConfirmationScreen(user: widget.user),
+      'Centro de Material Hospitalar' =>
+        OpmeConfirmationScreen(user: widget.user),
       _ => RoleConfirmationScreen(role: widget.role, user: widget.user),
     };
   }

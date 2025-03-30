@@ -26,10 +26,10 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   DocumentReference? _selectedSurgeonRef;
   DocumentReference? _selectedAnesthesiologistRef;
 
-  // Seleção múltipla de OPME (permanece como lista)
-  List<DocumentReference> _selectedOpme = [];
+  // Seleção múltipla de OPME (lista com objetos que contem materialId e quantity)
+  List<dynamic> _selectedOpme = [];
 
-  // Produtos sanguíneos: usando mapa para armazenar (id do produto -> quantidade)
+  // Produtos sanguíneos: mapa (id do produto -> quantidade)
   Map<String, int> _selectedBloodProducts = {};
 
   // Data e hora da cirurgia
@@ -44,12 +44,10 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       context: context,
       collection: 'procedures',
     );
-
     if (selectedId != null) {
       final docRef =
           FirebaseFirestore.instance.collection('procedures').doc(selectedId);
       final name = await _medicalService.getItemName(docRef);
-
       setState(() {
         _selectedProcedureRef = docRef;
         _procedureController.text = name;
@@ -62,12 +60,10 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       context: context,
       collection: 'surgeons',
     );
-
     if (selectedId != null) {
       final docRef =
           FirebaseFirestore.instance.collection('surgeons').doc(selectedId);
       final name = await _medicalService.getItemName(docRef);
-
       setState(() {
         _selectedSurgeonRef = docRef;
         _surgeonNameController.text = name;
@@ -80,13 +76,11 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       context: context,
       collection: 'anesthesiologists',
     );
-
     if (selectedId != null) {
       final docRef = FirebaseFirestore.instance
           .collection('anesthesiologists')
           .doc(selectedId);
       final name = await _medicalService.getItemName(docRef);
-
       setState(() {
         _selectedAnesthesiologistRef = docRef;
         _anesthesiologistController.text = name;
@@ -94,23 +88,17 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
+  // Método atualizado para seleção de OPME
   Future<void> _selectOpme() async {
-    final selectedIds = await _medicalService.showMultiSelectionDialog(
-      context: context,
-      collection: 'opme',
-    );
-
-    if (selectedIds != null && selectedIds.isNotEmpty) {
-      final docRefs = selectedIds
-          .map((id) => FirebaseFirestore.instance.collection('opme').doc(id))
-          .toList();
+    final selected = await _medicalService.showOpmeSelectionDialog(context);
+    if (selected != null) {
       setState(() {
-        _selectedOpme = docRefs;
+        _selectedOpme = selected;
       });
     }
   }
 
-  // Método atualizado para seleção de produtos sanguíneos, retornando um mapa (id -> quantidade)
+  // Seleção de produtos sanguíneos: retorna um mapa (id -> quantidade)
   Future<void> _selectBloodProducts() async {
     final selected =
         await _medicalService.showBloodProductSelectionDialog(context);
@@ -170,6 +158,57 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     );
   }
 
+  // Novo widget para exibir os materiais OPME selecionados
+  Widget _buildOpmeField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Materiais OPME',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        InkWell(
+          onTap: _selectOpme,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: _selectedOpme.isEmpty
+                ? const Text('Clique para selecionar materiais')
+                : Wrap(
+                    spacing: 8,
+                    children: _selectedOpme.map((item) {
+                      return FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance
+                            .collection('opme')
+                            .doc(item['materialId'])
+                            .get(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData) {
+                            final material =
+                                snapshot.data!.data() as Map<String, dynamic>;
+                            return Chip(
+                              label: Text(
+                                  '${material['name']}: ${item['quantity']}'),
+                              deleteIcon: const Icon(Icons.edit),
+                              onDeleted: () => setState(() {
+                                _selectedOpme.remove(item);
+                              }),
+                            );
+                          }
+                          return const CircularProgressIndicator();
+                        },
+                      );
+                    }).toList(),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _selectDateTime() async {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
@@ -177,13 +216,11 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
-
     if (pickedDate != null) {
       final TimeOfDay? pickedTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
       );
-
       if (pickedTime != null) {
         setState(() {
           _selectedDateTime = DateTime(
@@ -214,7 +251,6 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       'surgeon': _selectedSurgeonRef,
       'anesthesiologist': _selectedAnesthesiologistRef,
       'opme': _selectedOpme,
-      // Atualizado para enviar o mapa de produtos sanguíneos
       'bloodProducts':
           _selectedBloodProducts.map((key, value) => MapEntry(key, value)),
       'needsICU': _needsICU,
@@ -264,24 +300,22 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ? Text('Clique para selecionar $label')
                 : Wrap(
                     spacing: 8,
-                    children: items
-                        .map(
-                          (ref) => Chip(
-                            label: FutureBuilder<DocumentSnapshot>(
-                              future: ref.get(),
-                              builder: (context, snapshot) {
-                                if (snapshot.hasData) {
-                                  final data = snapshot.data!.data()
-                                      as Map<String, dynamic>?;
-                                  return Text(data?['name'] ?? 'Sem nome');
-                                }
-                                return const Text('Carregando...');
-                              },
-                            ),
-                            onDeleted: () => setState(() => items.remove(ref)),
-                          ),
-                        )
-                        .toList(),
+                    children: items.map((ref) {
+                      return Chip(
+                        label: FutureBuilder<DocumentSnapshot>(
+                          future: ref.get(),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData) {
+                              final data = snapshot.data!.data()
+                                  as Map<String, dynamic>?;
+                              return Text(data?['name'] ?? 'Sem nome');
+                            }
+                            return const Text('Carregando...');
+                          },
+                        ),
+                        onDeleted: () => setState(() => items.remove(ref)),
+                      );
+                    }).toList(),
                   ),
           ),
         ),
@@ -367,15 +401,10 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ],
               ),
               const SizedBox(height: 15),
-              // Seleção múltipla de OPME
-              _buildMultiSelectField(
-                context: context,
-                label: 'OPMe',
-                items: _selectedOpme,
-                onTap: _selectOpme,
-              ),
+              // Seleção de materiais OPME usando o novo widget
+              _buildOpmeField(),
               const SizedBox(height: 15),
-              // Seleção de produtos sanguíneos (novo widget)
+              // Seleção de produtos sanguíneos
               _buildBloodProductsField(),
               const SizedBox(height: 15),
               // Necessidade de UTI
