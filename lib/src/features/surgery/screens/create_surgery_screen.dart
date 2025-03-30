@@ -26,7 +26,7 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   DocumentReference? _selectedSurgeonRef;
   DocumentReference? _selectedAnesthesiologistRef;
 
-  // Seleção múltipla de OPME (lista com objetos que contem materialId e quantity)
+  // Seleção múltipla de OPME (lista com objetos que contêm materialId e quantity)
   List<dynamic> _selectedOpme = [];
 
   // Produtos sanguíneos: mapa (id do produto -> quantidade)
@@ -44,10 +44,12 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       context: context,
       collection: 'procedures',
     );
+    if (!mounted) return;
     if (selectedId != null) {
       final docRef =
           FirebaseFirestore.instance.collection('procedures').doc(selectedId);
       final name = await _medicalService.getItemName(docRef);
+      if (!mounted) return;
       setState(() {
         _selectedProcedureRef = docRef;
         _procedureController.text = name;
@@ -60,10 +62,12 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       context: context,
       collection: 'surgeons',
     );
+    if (!mounted) return;
     if (selectedId != null) {
       final docRef =
           FirebaseFirestore.instance.collection('surgeons').doc(selectedId);
       final name = await _medicalService.getItemName(docRef);
+      if (!mounted) return;
       setState(() {
         _selectedSurgeonRef = docRef;
         _surgeonNameController.text = name;
@@ -76,11 +80,13 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       context: context,
       collection: 'anesthesiologists',
     );
+    if (!mounted) return;
     if (selectedId != null) {
       final docRef = FirebaseFirestore.instance
           .collection('anesthesiologists')
           .doc(selectedId);
       final name = await _medicalService.getItemName(docRef);
+      if (!mounted) return;
       setState(() {
         _selectedAnesthesiologistRef = docRef;
         _anesthesiologistController.text = name;
@@ -88,9 +94,9 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
-  // Método atualizado para seleção de OPME
   Future<void> _selectOpme() async {
     final selected = await _medicalService.showOpmeSelectionDialog(context);
+    if (!mounted) return;
     if (selected != null) {
       setState(() {
         _selectedOpme = selected;
@@ -98,10 +104,10 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
     }
   }
 
-  // Seleção de produtos sanguíneos: retorna um mapa (id -> quantidade)
   Future<void> _selectBloodProducts() async {
     final selected =
         await _medicalService.showBloodProductSelectionDialog(context);
+    if (!mounted) return;
     if (selected != null) {
       setState(() {
         _selectedBloodProducts = selected;
@@ -216,11 +222,13 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
+    if (!mounted) return;
     if (pickedDate != null) {
       final TimeOfDay? pickedTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(_selectedDateTime),
       );
+      if (!mounted) return;
       if (pickedTime != null) {
         setState(() {
           _selectedDateTime = DateTime(
@@ -263,9 +271,11 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
 
     try {
       await _surgeryService.createSurgery(surgeryData);
+      if (!mounted) return;
       _showSnackBar('Cirurgia criada com sucesso!');
-      if (mounted) Navigator.pop(context);
+      Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Erro ao criar cirurgia: ${e.toString()}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -275,51 +285,6 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
-    );
-  }
-
-  Widget _buildMultiSelectField({
-    required BuildContext context,
-    required String label,
-    required List<DocumentReference> items,
-    required VoidCallback onTap,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-        InkWell(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: items.isEmpty
-                ? Text('Clique para selecionar $label')
-                : Wrap(
-                    spacing: 8,
-                    children: items.map((ref) {
-                      return Chip(
-                        label: FutureBuilder<DocumentSnapshot>(
-                          future: ref.get(),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData) {
-                              final data = snapshot.data!.data()
-                                  as Map<String, dynamic>?;
-                              return Text(data?['name'] ?? 'Sem nome');
-                            }
-                            return const Text('Carregando...');
-                          },
-                        ),
-                        onDeleted: () => setState(() => items.remove(ref)),
-                      );
-                    }).toList(),
-                  ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -401,7 +366,7 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
                 ],
               ),
               const SizedBox(height: 15),
-              // Seleção de materiais OPME usando o novo widget
+              // Seleção de materiais OPME
               _buildOpmeField(),
               const SizedBox(height: 15),
               // Seleção de produtos sanguíneos
