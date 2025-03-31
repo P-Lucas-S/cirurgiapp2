@@ -30,8 +30,10 @@ class _BloodBankConfirmation {
   });
 
   Future<void> execute() async {
+    // Converte os produtos sanguíneos para Map<String, int>
     final requestedProducts = (surgery['bloodProducts'] as Map<String, dynamic>)
         .map((key, value) => MapEntry(key, (value as num).toInt()));
+    // Agora, usamos o parâmetro "requestedProducts"
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) =>
@@ -41,19 +43,57 @@ class _BloodBankConfirmation {
     if (result == null || !context.mounted) return;
 
     try {
-      final updateData = {
-        'confirmations.banco_sangue': result['confirmed'],
-        'status': result['confirmed'] ? 'confirmada' : 'negada',
-        'bloodProductsConfirmation': result['products'],
-        'denialReason': result['confirmed']
-            ? null
-            : 'Falta dos seguintes hemoderivados: ${result['missingProducts']}',
-      };
+      final surgeryRef =
+          FirebaseFirestore.instance.collection('surgeries').doc(surgeryId);
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        DocumentSnapshot surgerySnapshot = await transaction.get(surgeryRef);
+        if (!surgerySnapshot.exists) throw Exception('Cirurgia não encontrada');
 
-      await FirebaseFirestore.instance
-          .collection('surgeries')
-          .doc(surgeryId)
-          .update(updateData);
+        Map<String, dynamic> surgeryData =
+            surgerySnapshot.data() as Map<String, dynamic>;
+        List<String> requiredConfirmations =
+            (surgeryData['requiredConfirmations'] as List<dynamic>?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [];
+        Map<String, dynamic> confirmations =
+            Map<String, dynamic>.from(surgeryData['confirmations'] ?? {});
+
+        // Atualiza a confirmação atual para banco de sangue
+        confirmations['banco_sangue'] = result['confirmed'];
+        surgeryData['confirmations'] = confirmations;
+
+        bool anyDenied = requiredConfirmations.any((role) =>
+            confirmations.containsKey(role) && confirmations[role] == false);
+
+        bool allConfirmed = requiredConfirmations.every((role) =>
+            confirmations.containsKey(role) && confirmations[role] == true);
+
+        String newStatus;
+        if (anyDenied) {
+          newStatus = 'negada';
+        } else if (allConfirmed) {
+          newStatus = 'confirmada';
+        } else {
+          newStatus =
+              'pendente'; // Mantém como pendente se faltar alguma confirmação
+        }
+
+        final Map<String, dynamic> updateData = {
+          'confirmations.banco_sangue': result['confirmed'],
+          'bloodProductsConfirmation': result['products'],
+          'status': newStatus,
+        };
+
+        if (result['confirmed'] == false) {
+          updateData['denialReason'] =
+              'Falta dos seguintes hemoderivados: ${result['missingProducts']}';
+        } else {
+          updateData['denialReason'] = FieldValue.delete();
+        }
+
+        transaction.update(surgeryRef, updateData);
+      });
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -150,7 +190,27 @@ class _BloodBankConfirmationScreenState
       );
 }
 
-/// Diálogo de confirmação personalizado para os produtos sanguíneos
+class OpmeItem {
+  final String materialId;
+  final int quantity;
+  final String specification;
+
+  OpmeItem({
+    required this.materialId,
+    required this.quantity,
+    required this.specification,
+  });
+
+  factory OpmeItem.fromMap(Map<String, dynamic> map) {
+    return OpmeItem(
+      materialId: map['materialId'],
+      quantity: map['quantity'],
+      specification: map['specification'] ?? '',
+    );
+  }
+}
+
+/// Diálogo de confirmação para produtos sanguíneos, agora usando o parâmetro "requestedProducts"
 class _ConfirmationDialog extends StatefulWidget {
   final Map<String, int> requestedProducts;
 

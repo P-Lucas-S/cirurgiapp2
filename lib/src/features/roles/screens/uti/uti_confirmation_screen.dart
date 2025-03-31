@@ -29,16 +29,50 @@ class _UTIConfirmationScreenState extends State<UTIConfirmationScreen> {
 
   Future<void> _confirmUTI(String surgeryId, bool confirmed) async {
     try {
-      final updateData = {
-        'confirmations.uti': confirmed,
-        'status': confirmed ? 'confirmada' : 'negada',
-        'denialReason': confirmed ? null : 'UTI não disponível',
-      };
+      final surgeryRef = _firestore.collection('surgeries').doc(surgeryId);
+      await _firestore.runTransaction((transaction) async {
+        final surgerySnapshot = await transaction.get(surgeryRef);
+        if (!surgerySnapshot.exists) {
+          throw Exception('Cirurgia não encontrada');
+        }
+        final surgeryData =
+            Map<String, dynamic>.from(surgerySnapshot.data() as Map);
+        final requiredConfirmations =
+            (surgeryData['requiredConfirmations'] as List<dynamic>?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [];
+        final confirmations =
+            Map<String, dynamic>.from(surgeryData['confirmations'] ?? {});
 
-      await _firestore
-          .collection('surgeries')
-          .doc(surgeryId)
-          .update(updateData);
+        // Atualiza a confirmação para UTI
+        confirmations['uti'] = confirmed;
+        surgeryData['confirmations'] = confirmations;
+
+        bool anyDenied = requiredConfirmations.any((role) =>
+            confirmations.containsKey(role) && confirmations[role] == false);
+
+        bool allConfirmed = requiredConfirmations.every((role) =>
+            confirmations.containsKey(role) && confirmations[role] == true);
+
+        String newStatus;
+        if (anyDenied) {
+          newStatus = 'negada';
+        } else if (allConfirmed) {
+          newStatus = 'confirmada';
+        } else {
+          newStatus =
+              'pendente'; // Mantém como pendente se faltar alguma confirmação
+        }
+
+        final updateData = {
+          'confirmations.uti': confirmed,
+          'status': newStatus,
+          'denialReason': confirmed ? null : 'UTI não disponível',
+        };
+
+        transaction.update(surgeryRef, updateData);
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -103,21 +137,21 @@ class _UTIConfirmationScreenState extends State<UTIConfirmationScreen> {
   void _showConfirmationDialog(String surgeryId, Map<String, dynamic> surgery) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Confirmar UTI'),
-        content: Text('Confirmar disponibilidade de leito na UTI para '
-            '${surgery['patientName']}?'),
+        content: Text(
+            'Confirmar disponibilidade de leito na UTI para ${surgery['patientName']}?'),
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(ctx);
               _confirmUTI(surgeryId, false);
             },
             child: const Text('Negar', style: TextStyle(color: Colors.red)),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(ctx);
               _confirmUTI(surgeryId, true);
             },
             child: const Text('Confirmar'),

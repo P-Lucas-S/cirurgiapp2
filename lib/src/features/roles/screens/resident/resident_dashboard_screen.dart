@@ -5,12 +5,11 @@ import 'package:cirurgiapp/src/features/surgery/widgets/surgery_card.dart';
 import 'package:cirurgiapp/src/core/models/user_model.dart';
 import 'package:cirurgiapp/src/services/auth_service.dart';
 import 'package:cirurgiapp/src/features/auth/screens/login_screen.dart';
-import 'package:cirurgiapp/src/services/surgery_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class ResidentDashboardScreen extends StatefulWidget {
   final HospitalUser user;
-  const ResidentDashboardScreen({super.key, required this.user});
+  const ResidentDashboardScreen({Key? key, required this.user})
+      : super(key: key);
 
   @override
   State<ResidentDashboardScreen> createState() =>
@@ -18,68 +17,114 @@ class ResidentDashboardScreen extends StatefulWidget {
 }
 
 class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
-  void _logout(BuildContext context) async {
+  Future<void> _logout() async {
     await AuthService().signOut();
-    if (!context.mounted) return;
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
+  }
+
+  Future<void> _updateResidentConfirmation(
+      String surgeryId, bool newValue) async {
+    try {
+      final surgeryRef =
+          FirebaseFirestore.instance.collection('surgeries').doc(surgeryId);
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final surgerySnapshot = await transaction.get(surgeryRef);
+        if (!surgerySnapshot.exists) {
+          throw Exception('Cirurgia não encontrada');
+        }
+        final surgeryData =
+            Map<String, dynamic>.from(surgerySnapshot.data() as Map);
+        final requiredConfirmations =
+            (surgeryData['requiredConfirmations'] as List<dynamic>?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [];
+        final confirmations =
+            Map<String, dynamic>.from(surgeryData['confirmations'] ?? {});
+
+        // Atualiza a confirmação do residente
+        confirmations['residente'] = newValue;
+        surgeryData['confirmations'] = confirmations;
+
+        bool anyDenied = requiredConfirmations.any((role) =>
+            confirmations.containsKey(role) && confirmations[role] == false);
+
+        bool allConfirmed = requiredConfirmations.every((role) =>
+            confirmations.containsKey(role) && confirmations[role] == true);
+
+        String newStatus;
+        if (anyDenied) {
+          newStatus = 'negada';
+        } else if (allConfirmed) {
+          newStatus = 'confirmada';
+        } else {
+          newStatus = 'pendente';
+        }
+
+        final updateData = {
+          'confirmations.residente': newValue,
+          'status': newStatus,
+        };
+
+        transaction.update(surgeryRef, updateData);
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              newValue ? 'Pré-operatório confirmado!' : 'Confirmação removida'),
+        ),
+      );
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   void _handleResidentConfirmation(
       String surgeryId, Map<String, dynamic> surgery) {
-    final newValue = !(surgery['confirmations']?['residente'] ?? false);
+    final bool currentConfirmation =
+        surgery['confirmations']?['residente'] ?? false;
+    final bool newValue = !currentConfirmation;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(newValue
-            ? 'Confirmar Pré-Operatório'
-            : 'Desconfirmar Pré-Operatório'),
-        content: Text(newValue
-            ? 'Confirmar que o pré-operatório foi realizado conforme protocolo?'
-            : 'Deseja retirar a confirmação do pré-operatório?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(newValue
+              ? 'Confirmar Pré-Operatório'
+              : 'Desconfirmar Pré-Operatório'),
+          content: Text(
+            newValue
+                ? 'Confirmar que o pré-operatório foi realizado conforme protocolo?'
+                : 'Deseja retirar a confirmação do pré-operatório?',
           ),
-          TextButton(
-            onPressed: () async {
-              try {
-                await SurgeryService().confirmRequirement(
-                  surgeryId,
-                  'residente',
-                  FirebaseAuth.instance.currentUser!.uid,
-                  newValue,
-                );
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(newValue
-                          ? 'Pré-operatório confirmado!'
-                          : 'Confirmação removida'),
-                    ),
-                  );
-                }
-                setState(() {});
-              } catch (e) {
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Erro: ${e.toString()}'),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                }
-              }
-            },
-            child: Text(newValue ? 'Confirmar' : 'Desconfirmar'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () async {
+                // Fecha o diálogo antes de iniciar a operação assíncrona
+                Navigator.pop(dialogContext);
+                await _updateResidentConfirmation(surgeryId, newValue);
+              },
+              child: Text(newValue ? 'Confirmar' : 'Desconfirmar'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -112,7 +157,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
+            onPressed: _logout,
           ),
         ],
       ),
@@ -128,7 +173,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                'Erro: ${snapshot.error.toString()}',
+                'Erro: ${snapshot.error}',
                 style: const TextStyle(color: Colors.red),
               ),
             );
@@ -147,7 +192,9 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
             itemBuilder: (context, index) {
               final doc = surgeries[index];
               return _buildSurgeryCard(
-                  doc.id, doc.data() as Map<String, dynamic>);
+                doc.id,
+                doc.data() as Map<String, dynamic>,
+              );
             },
           );
         },

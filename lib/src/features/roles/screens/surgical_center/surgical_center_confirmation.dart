@@ -13,7 +13,7 @@ class SurgicalCenterConfirmationScreen extends StatelessWidget {
     required this.user,
   }) : super(key: key);
 
-  // Getter para obter o stream das cirurgias pendentes
+  // Stream para obter as cirurgias pendentes
   Stream<QuerySnapshot> get _surgeriesStream => FirebaseFirestore.instance
       .collection('surgeries')
       .where('status', isEqualTo: 'pendente')
@@ -83,7 +83,7 @@ class SurgicalCenterConfirmationScreen extends StatelessWidget {
 
   void _handleSurgicalCenterConfirmation(
       String surgeryId, Map<String, dynamic> surgery, BuildContext context) {
-    // Declara as variáveis fora do builder para que sejam persistentes
+    // Inicializa as variáveis a partir dos dados da cirurgia
     bool isConfirmed = surgery['confirmations']?['centro_cirurgico'] ?? false;
     String? selectedRoom = surgery['surgeryRoom'];
 
@@ -133,28 +133,65 @@ class SurgicalCenterConfirmationScreen extends StatelessWidget {
                 ),
                 onPressed: () async {
                   try {
-                    // Atualizar confirmação
-                    await FirebaseFirestore.instance
+                    final surgeryRef = FirebaseFirestore.instance
                         .collection('surgeries')
-                        .doc(surgeryId)
-                        .update({
-                      'confirmations.centro_cirurgico': isConfirmed,
-                      'status': isConfirmed ? 'confirmada' : 'negada',
+                        .doc(surgeryId);
+                    await FirebaseFirestore.instance
+                        .runTransaction((transaction) async {
+                      DocumentSnapshot surgerySnapshot =
+                          await transaction.get(surgeryRef);
+                      if (!surgerySnapshot.exists) {
+                        throw Exception('Cirurgia não encontrada');
+                      }
+                      Map<String, dynamic> surgeryData =
+                          Map<String, dynamic>.from(
+                              surgerySnapshot.data() as Map);
+                      List<String> requiredConfirmations =
+                          (surgeryData['requiredConfirmations']
+                                      as List<dynamic>?)
+                                  ?.map((e) => e.toString())
+                                  .toList() ??
+                              [];
+                      Map<String, dynamic> confirmations =
+                          Map<String, dynamic>.from(
+                              surgeryData['confirmations'] ?? {});
+
+                      // Atualiza a confirmação do centro cirúrgico
+                      confirmations['centro_cirurgico'] = isConfirmed;
+                      surgeryData['confirmations'] = confirmations;
+
+                      bool anyDenied = requiredConfirmations.any((role) =>
+                          confirmations.containsKey(role) &&
+                          confirmations[role] == false);
+
+                      bool allConfirmed = requiredConfirmations.every((role) =>
+                          confirmations.containsKey(role) &&
+                          confirmations[role] == true);
+
+                      String newStatus;
+                      if (anyDenied) {
+                        newStatus = 'negada';
+                      } else if (allConfirmed) {
+                        newStatus = 'confirmada';
+                      } else {
+                        newStatus = 'pendente';
+                      }
+
+                      Map<String, dynamic> updateData = {
+                        'confirmations.centro_cirurgico': isConfirmed,
+                        'status': newStatus,
+                        'surgeryRoom': selectedRoom,
+                      };
+
+                      transaction.update(surgeryRef, updateData);
                     });
-
-                    // Atualizar sala se selecionada
-                    if (selectedRoom != null) {
-                      await FirebaseFirestore.instance
-                          .collection('surgeries')
-                          .doc(surgeryId)
-                          .update({'surgeryRoom': selectedRoom});
-                    }
-
                     if (ctx.mounted) Navigator.pop(ctx);
                   } catch (e) {
                     if (ctx.mounted) {
                       ScaffoldMessenger.of(ctx).showSnackBar(
-                        SnackBar(content: Text('Erro: ${e.toString()}')),
+                        SnackBar(
+                          content: Text('Erro: ${e.toString()}'),
+                        ),
                       );
                     }
                   }

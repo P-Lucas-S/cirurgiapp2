@@ -36,7 +36,6 @@ class SurgeryService {
         'surgeon': surgeonRef,
         'status': 'pendente',
         'createdBy': _firestore.doc('users/${_auth.currentUser!.uid}'),
-        'confirmations': _initConfirmations(),
         'timestamps': _initTimestamps(),
         'opme': opme,
         'bloodProducts': bloodProducts,
@@ -71,11 +70,11 @@ class SurgeryService {
 
   Map<String, bool> _initConfirmations() {
     return {
-      'residente': false,
-      'centro_cirurgico': false,
-      'banco_sangue': false,
-      'uti': false,
-      'material_hospitalar': false,
+      // 'residente': false,
+      // 'centro_cirurgico': false,
+      // 'banco_sangue': false,
+      // 'uti': false,
+      // 'material_hospitalar': false,
     };
   }
 

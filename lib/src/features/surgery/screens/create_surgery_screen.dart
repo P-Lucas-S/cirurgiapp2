@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cirurgiapp/src/services/medical_data_service.dart';
 import 'package:cirurgiapp/src/services/surgery_service.dart';
 
@@ -253,6 +253,9 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
 
     setState(() => _isLoading = true);
 
+    // Cria um mapa para as confirmações
+    final confirmations = <String, dynamic>{};
+
     final surgeryData = {
       'patientName': _patientController.text.trim(),
       'procedure': _selectedProcedureRef,
@@ -263,17 +266,37 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
           _selectedBloodProducts.map((key, value) => MapEntry(key, value)),
       'needsICU': _needsICU,
       'dateTime': _selectedDateTime,
-      'confirmations': {
-        'residente': _residentConfirmation,
-      },
+      'confirmations': confirmations,
       'bloodProductsConfirmation': {},
     };
 
+    // Criação da lista de requiredConfirmations
+    List<String> requiredConfirmations = ['residente', 'centro_cirurgico'];
+
+    if (_selectedOpme.isNotEmpty) {
+      requiredConfirmations.add('material_hospitalar');
+    } else {
+      confirmations['material_hospitalar'] = true;
+    }
+
+    if (_selectedBloodProducts.isNotEmpty) {
+      requiredConfirmations.add('banco_sangue');
+    } else {
+      confirmations['banco_sangue'] = true;
+    }
+
+    if (_needsICU) {
+      requiredConfirmations.add('uti');
+    } else {
+      confirmations['uti'] = true;
+    }
+
+    surgeryData['requiredConfirmations'] = requiredConfirmations;
+
     try {
       await _surgeryService.createSurgery(surgeryData);
-      if (!mounted) return;
       _showSnackBar('Cirurgia criada com sucesso!');
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       _showSnackBar('Erro ao criar cirurgia: ${e.toString()}');

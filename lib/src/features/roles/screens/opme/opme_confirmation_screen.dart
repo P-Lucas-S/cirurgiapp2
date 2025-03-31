@@ -42,19 +42,57 @@ class _OpmeConfirmation {
     if (result == null || !context.mounted) return;
 
     try {
-      final updateData = {
-        'confirmations.material_hospitalar': result['confirmed'],
-        'status': result['confirmed'] ? 'confirmada' : 'negada',
-        'opmeConfirmation': result['materials'],
-        'denialReason': result['confirmed']
-            ? null
-            : 'Falta dos seguintes materiais: ${result['missingMaterials']}',
-      };
+      final surgeryRef =
+          FirebaseFirestore.instance.collection('surgeries').doc(surgeryId);
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final surgerySnapshot = await transaction.get(surgeryRef);
+        if (!surgerySnapshot.exists) {
+          throw Exception('Cirurgia não encontrada');
+        }
+        // Obter dados atuais da cirurgia
+        Map<String, dynamic> surgeryData =
+            surgerySnapshot.data() as Map<String, dynamic>;
+        List<String> requiredConfirmations =
+            (surgeryData['requiredConfirmations'] as List<dynamic>?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [];
+        Map<String, dynamic> confirmations =
+            Map<String, dynamic>.from(surgeryData['confirmations'] ?? {});
 
-      await FirebaseFirestore.instance
-          .collection('surgeries')
-          .doc(surgeryId)
-          .update(updateData);
+        // Atualiza a confirmação para Material Hospitalar
+        confirmations['material_hospitalar'] = result['confirmed'];
+        surgeryData['confirmations'] = confirmations;
+        bool anyDenied = requiredConfirmations.any((role) =>
+            confirmations.containsKey(role) && confirmations[role] == false);
+
+        bool allConfirmed = requiredConfirmations.every((role) =>
+            confirmations.containsKey(role) && confirmations[role] == true);
+
+        String newStatus;
+        if (anyDenied) {
+          newStatus = 'negada';
+        } else if (allConfirmed) {
+          newStatus = 'confirmada';
+        } else {
+          newStatus = 'pendente';
+        }
+
+        final Map<String, dynamic> updateData = {
+          'confirmations.material_hospitalar': result['confirmed'],
+          'opmeConfirmation': result['materials'],
+          'status': newStatus,
+        };
+
+        if (result['confirmed'] == false) {
+          updateData['denialReason'] =
+              'Falta dos seguintes materiais: ${result['missingMaterials']}';
+        } else {
+          updateData['denialReason'] = FieldValue.delete();
+        }
+
+        transaction.update(surgeryRef, updateData);
+      });
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
