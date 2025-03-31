@@ -45,7 +45,7 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
   }
 
   Widget _buildRoleSpecificContent() {
-    final hasRole = widget.user.roles.contains(widget.role);
+    bool hasRole = widget.user.roles?.contains(widget.role) ?? false;
 
     if (!hasRole) {
       return const Center(child: Text('Acesso não autorizado para este cargo'));

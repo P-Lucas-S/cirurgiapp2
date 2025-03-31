@@ -60,7 +60,7 @@ class _BloodBankConfirmation {
             Map<String, dynamic>.from(surgeryData['confirmations'] ?? {});
 
         // Atualiza a confirmação atual para banco de sangue
-        confirmations['banco_sangue'] = result['confirmed'];
+        confirmations['banco_sangue'] = result['confirmed'] ?? false;
         surgeryData['confirmations'] = confirmations;
 
         bool anyDenied = requiredConfirmations.any((role) =>
@@ -110,7 +110,8 @@ class _BloodBankConfirmationScreenState
 
   Stream<QuerySnapshot> get _surgeriesStream => _firestore
       .collection('surgeries')
-      .where('status', isEqualTo: 'pendente')
+      .where('status', whereIn: ['pendente', 'negada', 'confirmada'])
+      .where('requiredConfirmations', arrayContains: 'banco_sangue')
       .snapshots();
 
   @override

@@ -35,7 +35,6 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
   // Data e hora da cirurgia
   DateTime _selectedDateTime = DateTime.now();
   bool _needsICU = false;
-  final bool _residentConfirmation = false;
 
   bool _isLoading = false;
 
@@ -253,8 +252,36 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
 
     setState(() => _isLoading = true);
 
+    // Criação da lista de requiredConfirmations (movida para antes do uso)
+    List<String> requiredConfirmations = ['residente', 'centro_cirurgico'];
+
     // Cria um mapa para as confirmações
-    final confirmations = <String, dynamic>{};
+    final confirmations = <String, bool>{};
+    for (var role in requiredConfirmations) {
+      confirmations[role] = false;
+    }
+
+    // Adicionar confirmações condicionais
+    if (_selectedOpme.isNotEmpty) {
+      requiredConfirmations.add('material_hospitalar');
+      confirmations['material_hospitalar'] = false;
+    } else {
+      confirmations['material_hospitalar'] = true;
+    }
+
+    if (_selectedBloodProducts.isNotEmpty) {
+      requiredConfirmations.add('banco_sangue');
+      confirmations['banco_sangue'] = false;
+    } else {
+      confirmations['banco_sangue'] = true;
+    }
+
+    if (_needsICU) {
+      requiredConfirmations.add('uti');
+      confirmations['uti'] = false;
+    } else {
+      confirmations['uti'] = true;
+    }
 
     final surgeryData = {
       'patientName': _patientController.text.trim(),
@@ -268,30 +295,8 @@ class _CreateSurgeryScreenState extends State<CreateSurgeryScreen> {
       'dateTime': _selectedDateTime,
       'confirmations': confirmations,
       'bloodProductsConfirmation': {},
+      'requiredConfirmations': requiredConfirmations,
     };
-
-    // Criação da lista de requiredConfirmations
-    List<String> requiredConfirmations = ['residente', 'centro_cirurgico'];
-
-    if (_selectedOpme.isNotEmpty) {
-      requiredConfirmations.add('material_hospitalar');
-    } else {
-      confirmations['material_hospitalar'] = true;
-    }
-
-    if (_selectedBloodProducts.isNotEmpty) {
-      requiredConfirmations.add('banco_sangue');
-    } else {
-      confirmations['banco_sangue'] = true;
-    }
-
-    if (_needsICU) {
-      requiredConfirmations.add('uti');
-    } else {
-      confirmations['uti'] = true;
-    }
-
-    surgeryData['requiredConfirmations'] = requiredConfirmations;
 
     try {
       await _surgeryService.createSurgery(surgeryData);

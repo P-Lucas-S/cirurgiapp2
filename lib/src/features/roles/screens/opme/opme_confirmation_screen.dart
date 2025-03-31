@@ -108,7 +108,8 @@ class _OpmeConfirmationScreenState extends State<OpmeConfirmationScreen> {
 
   Stream<QuerySnapshot> get _surgeriesStream => _firestore
       .collection('surgeries')
-      .where('status', isEqualTo: 'pendente')
+      .where('status', whereIn: ['pendente', 'negada', 'confirmada'])
+      .where('requiredConfirmations', arrayContains: 'material_hospitalar')
       .snapshots();
 
   @override

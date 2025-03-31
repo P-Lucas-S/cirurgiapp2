@@ -209,61 +209,82 @@ class SurgeryCard extends StatelessWidget {
   }
 
   Widget _buildStatusIcon() {
-    return Icon(
-      _statusIcon,
-      color: _statusColor,
-      size: _iconSize,
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Icon(
+          _statusIcon,
+          color: _statusColor,
+          size: _iconSize,
+        ),
+        if (_status == 'negada')
+          const Icon(Icons.block, color: Colors.white, size: 16),
+      ],
     );
   }
 
-  // Método _buildConfirmButton refatorado utilizando switch expression com caso UTI
-  Widget _buildConfirmButton(BuildContext context) {
-    if (!canConfirm) return const SizedBox.shrink();
+  // Método auxiliar para retornar o valor da confirmação baseado na role
+  bool getConfirmationValue(String roleKey) {
+    final confirmations = surgery['confirmations'] ?? {};
+    return (confirmations[roleKey] ?? false);
+  }
 
+  // Retorna a chave de confirmação de acordo com a role do usuário
+  String _getRoleKey() {
     return switch (userRole) {
-      'Banco de Sangue' => IconButton(
-          icon: _getConfirmationIcon(),
-          onPressed: () => _handleBloodBankConfirmation(context),
-        ),
-      'Centro Cirúrgico' => IconButton(
-          icon: Icon(
-            (surgery['confirmations']['centro_cirurgico'] ?? false)
-                ? Icons.check_circle
-                : Icons.meeting_room_outlined,
-            color: (surgery['confirmations']['centro_cirurgico'] ?? false)
-                ? AppColors.success
-                : AppColors.secondary,
-          ),
-          onPressed: () => _showSurgicalCenterDialog(context),
-        ),
-      'Residente de Cirurgia' => IconButton(
-          icon: Icon(
-            (surgery['confirmations']['residente'] ?? false)
-                ? Icons.check_circle
-                : Icons.pending_actions,
-            color: (surgery['confirmations']['residente'] ?? false)
-                ? AppColors.success
-                : AppColors.secondary,
-          ),
-          onPressed: () => _toggleResidentConfirmation(context),
-        ),
-      'UTI' => IconButton(
-          icon: Icon(
-            (surgery['confirmations']['uti'] ?? false)
-                ? Icons.check_circle
-                : Icons.emergency,
-            color: (surgery['confirmations']['uti'] ?? false)
-                ? AppColors.success
-                : AppColors.secondary,
-          ),
-          onPressed: onConfirm,
-        ),
-      _ => const SizedBox.shrink(),
+      'Banco de Sangue' => 'banco_sangue',
+      'Centro Cirúrgico' => 'centro_cirurgico',
+      'Residente de Cirurgia' => 'residente',
+      'UTI' => 'uti',
+      'Centro de Material Hospitalar' => 'material_hospitalar',
+      _ => '',
     };
   }
 
+  // Método _buildConfirmButton refatorado utilizando os métodos auxiliares
+  Widget _buildConfirmButton(BuildContext context) {
+    if (!canConfirm) return const SizedBox.shrink();
+
+    final roleKey = _getRoleKey();
+    final isConfirmed = getConfirmationValue(roleKey);
+
+    switch (userRole) {
+      case 'Banco de Sangue':
+        return IconButton(
+          icon: _getConfirmationIcon(),
+          onPressed: () => _handleBloodBankConfirmation(context),
+        );
+      case 'Centro Cirúrgico':
+        return IconButton(
+          icon: Icon(
+            isConfirmed ? Icons.check_circle : Icons.meeting_room_outlined,
+            color: isConfirmed ? AppColors.success : AppColors.secondary,
+          ),
+          onPressed: () => _showSurgicalCenterDialog(context),
+        );
+      case 'Residente de Cirurgia':
+        return IconButton(
+          icon: Icon(
+            isConfirmed ? Icons.check_circle : Icons.pending_actions,
+            color: isConfirmed ? AppColors.success : AppColors.secondary,
+          ),
+          onPressed: () => _toggleResidentConfirmation(context),
+        );
+      case 'UTI':
+        return IconButton(
+          icon: Icon(
+            isConfirmed ? Icons.check_circle : Icons.emergency,
+            color: isConfirmed ? AppColors.success : AppColors.secondary,
+          ),
+          onPressed: onConfirm,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   Icon _getConfirmationIcon() {
-    final isConfirmed = surgery['confirmations']['banco_sangue'] ?? false;
+    final isConfirmed = getConfirmationValue('banco_sangue');
     return Icon(
       isConfirmed ? Icons.check_circle : Icons.bloodtype_outlined,
       color: isConfirmed ? AppColors.success : AppColors.secondary,
@@ -280,7 +301,7 @@ class SurgeryCard extends StatelessWidget {
 
   void _showSurgicalCenterDialog(BuildContext context) {
     String? selectedRoom = surgery['surgeryRoom'];
-    bool isConfirmed = surgery['confirmations']['centro_cirurgico'] ?? false;
+    bool isConfirmed = getConfirmationValue('centro_cirurgico');
 
     showDialog(
       context: context,
@@ -356,7 +377,7 @@ class SurgeryCard extends StatelessWidget {
   }
 
   void _toggleResidentConfirmation(BuildContext context) {
-    final newValue = !(surgery['confirmations']['residente'] ?? false);
+    final newValue = !getConfirmationValue('residente');
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -468,8 +489,17 @@ class SurgeryCard extends StatelessWidget {
 
   String get _formattedStatus => _status.capitalize();
 
-  String get _status =>
-      (surgery['status'] as String? ?? 'pendente').toLowerCase();
+  // Getter atualizado conforme as mudanças solicitadas
+  String get _status {
+    final status = (surgery['status'] as String? ?? 'pendente').toLowerCase();
+    final confirmations = surgery['confirmations'] ?? {};
+    final required = surgery['requiredConfirmations'] ?? [];
+    if (status == 'confirmada' &&
+        required.any((role) => !(confirmations[role] ?? false))) {
+      return 'pendente';
+    }
+    return status;
+  }
 
   IconData get _statusIcon => switch (_status) {
         'confirmada' => Icons.check_circle,

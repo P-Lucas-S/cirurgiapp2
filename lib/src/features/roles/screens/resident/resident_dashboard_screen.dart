@@ -164,7 +164,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('surgeries')
-            .where('status', isEqualTo: 'pendente')
+            .where('status', whereIn: ['pendente', 'negada', 'confirmada'])
             .orderBy('dateTime', descending: true)
             .snapshots(),
         builder: (context, snapshot) {

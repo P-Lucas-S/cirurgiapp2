@@ -23,8 +23,8 @@ class _UTIConfirmationScreenState extends State<UTIConfirmationScreen> {
 
   Stream<QuerySnapshot> get _surgeriesStream => _firestore
       .collection('surgeries')
+      .where('status', whereIn: ['pendente', 'negada', 'confirmada'])
       .where('needsICU', isEqualTo: true)
-      .where('status', isEqualTo: 'pendente')
       .snapshots();
 
   Future<void> _confirmUTI(String surgeryId, bool confirmed) async {

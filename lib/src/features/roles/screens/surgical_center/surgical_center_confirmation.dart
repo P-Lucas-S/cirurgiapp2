@@ -16,7 +16,8 @@ class SurgicalCenterConfirmationScreen extends StatelessWidget {
   // Stream para obter as cirurgias pendentes
   Stream<QuerySnapshot> get _surgeriesStream => FirebaseFirestore.instance
       .collection('surgeries')
-      .where('status', isEqualTo: 'pendente')
+      .where('status', whereIn: ['pendente', 'negada', 'confirmada'])
+      .where('requiredConfirmations', arrayContains: 'centro_cirurgico')
       .snapshots();
 
   @override
