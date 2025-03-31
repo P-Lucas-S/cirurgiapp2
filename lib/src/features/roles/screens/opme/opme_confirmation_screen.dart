@@ -5,6 +5,12 @@ import 'package:cirurgiapp/src/components/style_constants/typography.dart';
 import 'package:cirurgiapp/src/core/models/user_model.dart';
 import 'package:cirurgiapp/src/features/surgery/widgets/surgery_card.dart';
 
+extension StringExtensions on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
+  }
+}
+
 class OpmeConfirmationScreen extends StatefulWidget {
   final HospitalUser user;
 
@@ -15,6 +21,125 @@ class OpmeConfirmationScreen extends StatefulWidget {
 
   @override
   State<OpmeConfirmationScreen> createState() => _OpmeConfirmationScreenState();
+}
+
+class _OpmeConfirmationScreenState extends State<OpmeConfirmationScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  String _selectedFilter = 'todas';
+
+  Stream<QuerySnapshot> _getSurgeriesStream() {
+    List<String> statusList = _selectedFilter == 'todas'
+        ? ['pendente', 'negada', 'confirmada']
+        : [_selectedFilter];
+
+    return _firestore
+        .collection('surgeries')
+        .where('status', whereIn: statusList)
+        .where('requiredConfirmations', arrayContains: 'material_hospitalar')
+        .snapshots();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Centro de Material Hospitalar'),
+        backgroundColor: core_colors.AppColors.primary,
+        foregroundColor: core_colors.AppColors.onPrimary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                context, '/login', (route) => false),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Seletor de filtro logo abaixo do AppBar
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedFilter,
+              items:
+                  ['todas', 'pendente', 'negada', 'confirmada'].map((status) {
+                return DropdownMenuItem<String>(
+                  value: status,
+                  child: Text(
+                    status == 'todas' ? 'Todas' : status.capitalize(),
+                  ),
+                );
+              }).toList(),
+              onChanged: (newValue) {
+                if (newValue != null) {
+                  setState(() => _selectedFilter = newValue);
+                }
+              },
+            ),
+          ),
+          // Lista de cirurgias
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _getSurgeriesStream(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return _buildErrorWidget();
+                if (!snapshot.hasData) return _buildLoadingIndicator();
+
+                final surgeries = snapshot.data!.docs;
+                if (surgeries.isEmpty) return _buildEmptyListWidget();
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: surgeries.length,
+                  itemBuilder: (context, index) {
+                    final doc = surgeries[index];
+                    final surgery = doc.data() as Map<String, dynamic>;
+                    return _buildSurgeryCard(doc.id, surgery);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSurgeryCard(String surgeryId, Map<String, dynamic> surgery) {
+    return SurgeryCard(
+      surgeryId: surgeryId,
+      surgery: surgery,
+      userRole: 'Centro de Material Hospitalar',
+      canConfirm: true,
+      onConfirm: () => _OpmeConfirmation(
+        context: context,
+        surgeryId: surgeryId,
+        surgery: surgery,
+      ).execute(),
+    );
+  }
+
+  Widget _buildLoadingIndicator() =>
+      const Center(child: CircularProgressIndicator());
+
+  Widget _buildErrorWidget() => Center(
+        child: Text(
+          'Erro ao carregar cirurgias',
+          style: H2(textColor: core_colors.AppColors.onSurface),
+        ),
+      );
+
+  Widget _buildEmptyListWidget() => Center(
+        child: Text(
+          'Nenhuma cirurgia pendente',
+          style: H2(textColor: core_colors.AppColors.onSurface),
+        ),
+      );
 }
 
 class _OpmeConfirmation {
@@ -49,7 +174,6 @@ class _OpmeConfirmation {
         if (!surgerySnapshot.exists) {
           throw Exception('Cirurgia não encontrada');
         }
-        // Obter dados atuais da cirurgia
         Map<String, dynamic> surgeryData =
             surgerySnapshot.data() as Map<String, dynamic>;
         List<String> requiredConfirmations =
@@ -60,12 +184,11 @@ class _OpmeConfirmation {
         Map<String, dynamic> confirmations =
             Map<String, dynamic>.from(surgeryData['confirmations'] ?? {});
 
-        // Atualiza a confirmação para Material Hospitalar
         confirmations['material_hospitalar'] = result['confirmed'];
         surgeryData['confirmations'] = confirmations;
+
         bool anyDenied = requiredConfirmations.any((role) =>
             confirmations.containsKey(role) && confirmations[role] == false);
-
         bool allConfirmed = requiredConfirmations.every((role) =>
             confirmations.containsKey(role) && confirmations[role] == true);
 
@@ -103,89 +226,6 @@ class _OpmeConfirmation {
   }
 }
 
-class _OpmeConfirmationScreenState extends State<OpmeConfirmationScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  Stream<QuerySnapshot> get _surgeriesStream => _firestore
-      .collection('surgeries')
-      .where('status', whereIn: ['pendente', 'negada', 'confirmada'])
-      .where('requiredConfirmations', arrayContains: 'material_hospitalar')
-      .snapshots();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Centro de Material Hospitalar'),
-        backgroundColor: core_colors.AppColors.primary,
-        foregroundColor: core_colors.AppColors.onPrimary,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                context, '/login', (route) => false),
-          ),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _surgeriesStream,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return _buildErrorWidget();
-          if (!snapshot.hasData) return _buildLoadingIndicator();
-
-          final surgeries = snapshot.data!.docs;
-          if (surgeries.isEmpty) return _buildEmptyListWidget();
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: surgeries.length,
-            itemBuilder: (context, index) {
-              final doc = surgeries[index];
-              final surgery = doc.data() as Map<String, dynamic>;
-              return _buildSurgeryCard(doc.id, surgery);
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSurgeryCard(String surgeryId, Map<String, dynamic> surgery) {
-    return SurgeryCard(
-      surgeryId: surgeryId,
-      surgery: surgery,
-      userRole: 'Centro de Material Hospitalar',
-      canConfirm: true,
-      onConfirm: () => _OpmeConfirmation(
-        context: context,
-        surgeryId: surgeryId,
-        surgery: surgery,
-      ).execute(),
-    );
-  }
-
-  Widget _buildLoadingIndicator() =>
-      const Center(child: CircularProgressIndicator());
-
-  Widget _buildErrorWidget() => Center(
-        child: Text(
-          'Erro ao carregar cirurgias',
-          style: H2(textColor: core_colors.AppColors.onSurface),
-        ),
-      );
-
-  Widget _buildEmptyListWidget() => Center(
-        child: Text(
-          'Nenhuma cirurgia pendente',
-          style: H2(textColor: core_colors.AppColors.onSurface),
-        ),
-      );
-}
-
 class OpmeItem {
   final String materialId;
   final int quantity;
@@ -221,7 +261,6 @@ class _ConfirmationDialogState extends State<_ConfirmationDialog> {
   @override
   void initState() {
     super.initState();
-    // Inicializa todos os materiais como não confirmados
     for (var material in widget.requestedMaterials) {
       _confirmedMaterials[material.materialId] = false;
     }
@@ -277,7 +316,6 @@ class _ConfirmationDialogState extends State<_ConfirmationDialog> {
 
             if (unconfirmed.isNotEmpty) {
               final missingMaterials = unconfirmed.map((e) => e.key).join(', ');
-
               Navigator.pop(context, {
                 'confirmed': false,
                 'missingMaterials': missingMaterials,

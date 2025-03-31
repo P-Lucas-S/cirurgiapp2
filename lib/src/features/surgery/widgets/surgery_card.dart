@@ -5,7 +5,6 @@ import 'package:cirurgiapp/src/core/constants/app_colors.dart';
 import 'package:cirurgiapp/src/core/extensions/string_extensions.dart';
 import 'package:cirurgiapp/src/features/surgery/screens/surgery_details_screen.dart';
 import 'package:cirurgiapp/src/services/surgery_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class SurgeryCard extends StatelessWidget {
   final String surgeryId;
@@ -20,12 +19,6 @@ class SurgeryCard extends StatelessWidget {
   static const EdgeInsets _cardMargin =
       EdgeInsets.symmetric(vertical: 8, horizontal: 16);
   static const EdgeInsets _contentPadding = EdgeInsets.all(16);
-  static const List<String> _surgeryRooms = [
-    'Sala 1',
-    'Sala 2',
-    'Sala 3',
-    'Sala 4'
-  ];
 
   const SurgeryCard({
     super.key,
@@ -87,11 +80,6 @@ class SurgeryCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Widget _buildCardContent(BuildContext context) {
-    // Método não mais utilizado, pois o conteúdo foi movido para o build.
-    return const SizedBox.shrink();
   }
 
   Widget _buildSurgeryInfo(BuildContext context) {
@@ -237,151 +225,6 @@ class SurgeryCard extends StatelessWidget {
     return (confirmations[roleKey] ?? false);
   }
 
-  String _getRoleKey() {
-    return switch (userRole) {
-      'Banco de Sangue' => 'banco_sangue',
-      'Centro Cirúrgico' => 'centro_cirurgico',
-      'Residente de Cirurgia' => 'residente',
-      'UTI' => 'uti',
-      'Centro de Material Hospitalar' => 'material_hospitalar',
-      _ => '',
-    };
-  }
-
-  Icon _getConfirmationIcon() {
-    final isConfirmed = getConfirmationValue('banco_sangue');
-    return Icon(
-      isConfirmed ? Icons.check_circle : Icons.bloodtype_outlined,
-      color: isConfirmed ? AppColors.success : AppColors.secondary,
-    );
-  }
-
-  void _handleBloodBankConfirmation(BuildContext context) {
-    _BloodBankConfirmation(
-      context: context,
-      surgeryId: surgeryId,
-      surgery: surgery,
-    ).execute();
-  }
-
-  void _showSurgicalCenterDialog(BuildContext context) {
-    String? selectedRoom = surgery['surgeryRoom'];
-    bool isConfirmed = getConfirmationValue('centro_cirurgico');
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Confirmar Centro Cirúrgico'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SwitchListTile(
-                title: const Text('Confirmar Cirurgia'),
-                value: isConfirmed,
-                activeColor: AppColors.success,
-                onChanged: (value) => setState(() => isConfirmed = value),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: selectedRoom,
-                decoration: InputDecoration(
-                  labelText: 'Selecionar Sala',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  filled: true,
-                ),
-                items: _surgeryRooms
-                    .map(
-                      (room) => DropdownMenuItem(
-                        value: room,
-                        child: Text(room),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => selectedRoom = value),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () async {
-                try {
-                  await SurgeryService().confirmRequirement(
-                    surgeryId,
-                    'centro_cirurgico',
-                    FirebaseAuth.instance.currentUser!.uid,
-                    isConfirmed,
-                  );
-                  if (selectedRoom != null) {
-                    await FirebaseFirestore.instance
-                        .collection('surgeries')
-                        .doc(surgeryId)
-                        .update({'surgeryRoom': selectedRoom});
-                  }
-                  if (ctx.mounted) Navigator.pop(ctx);
-                } catch (e) {
-                  if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(content: Text('Erro: ${e.toString()}')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Salvar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _toggleResidentConfirmation(BuildContext context) {
-    final newValue = !getConfirmationValue('residente');
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(newValue
-            ? 'Confirmar Pré-Operatório?'
-            : 'Desconfirmar Pré-Operatório?'),
-        content: Text(newValue
-            ? 'Confirmar que o pré-operatório foi realizado conforme protocolo?'
-            : 'Deseja retirar a confirmação do pré-operatório?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () async {
-              try {
-                await SurgeryService().confirmRequirement(
-                  surgeryId,
-                  'residente',
-                  FirebaseAuth.instance.currentUser!.uid,
-                  newValue,
-                );
-                if (ctx.mounted) Navigator.pop(ctx);
-              } catch (e) {
-                if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(content: Text('Erro: ${e.toString()}')),
-                  );
-                }
-              }
-            },
-            child: Text(newValue ? 'Confirmar' : 'Desconfirmar'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _navigateToDetails(BuildContext context) {
     // Criar cópia segura dos dados
     final safeSurgeryData = Map<String, dynamic>.from(surgery)
@@ -491,61 +334,6 @@ class SurgeryCard extends StatelessWidget {
     } catch (e) {
       debugPrint('Erro ao parsear referência: $e');
       return null;
-    }
-  }
-}
-
-class _BloodBankConfirmation {
-  final BuildContext context;
-  final String surgeryId;
-  final Map<String, dynamic> surgery;
-
-  _BloodBankConfirmation({
-    required this.context,
-    required this.surgeryId,
-    required this.surgery,
-  });
-
-  Future<void> execute() async {
-    final bloodProducts = (surgery['bloodProducts'] as Map<String, dynamic>)
-        .map((key, value) => MapEntry(key, (value as num).toInt()));
-    final result = await _showConfirmationDialog(bloodProducts);
-
-    if (result == null || !context.mounted) return;
-
-    await _updateSurgeryStatus(result);
-  }
-
-  Future<Map<String, dynamic>?> _showConfirmationDialog(
-      Map<String, int> requestedProducts) async {
-    return showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => _BloodProductsDialog(
-        requestedProducts: requestedProducts,
-      ),
-    );
-  }
-
-  Future<void> _updateSurgeryStatus(Map<String, dynamic> result) async {
-    try {
-      final updateData = {
-        'confirmations.banco_sangue': result['confirmed'],
-        'status': result['status'],
-        'bloodProductsConfirmation': result['products'],
-        if (result['denialReason'] != null)
-          'denialReason': result['denialReason'],
-      };
-
-      await FirebaseFirestore.instance
-          .collection('surgeries')
-          .doc(surgeryId)
-          .update(updateData);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro na confirmação: ${e.toString()}')),
-        );
-      }
     }
   }
 }

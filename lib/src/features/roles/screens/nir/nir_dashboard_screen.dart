@@ -6,8 +6,34 @@ import 'package:cirurgiapp/src/features/auth/screens/login_screen.dart';
 import 'package:cirurgiapp/src/features/surgery/screens/create_surgery_screen.dart';
 import 'package:cirurgiapp/src/features/surgery/widgets/surgery_card.dart';
 
-class NIRDashboardScreen extends StatelessWidget {
+extension StringExtensions on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
+  }
+}
+
+class NIRDashboardScreen extends StatefulWidget {
   const NIRDashboardScreen({super.key});
+
+  @override
+  State<NIRDashboardScreen> createState() => _NIRDashboardScreenState();
+}
+
+class _NIRDashboardScreenState extends State<NIRDashboardScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  String _selectedFilter = 'todas';
+
+  Stream<QuerySnapshot> _getSurgeriesStream() {
+    List<String> statusList = _selectedFilter == 'todas'
+        ? ['pendente', 'negada', 'confirmada']
+        : [_selectedFilter];
+
+    return _firestore
+        .collection('surgeries')
+        .orderBy('dateTime', descending: true)
+        .where('status', whereIn: statusList)
+        .snapshots();
+  }
 
   void _logout(BuildContext context) async {
     await AuthService().signOut();
@@ -40,21 +66,47 @@ class NIRDashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('surgeries')
-            .orderBy('dateTime', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return _buildErrorWidget('Erro ao carregar cirurgias');
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildLoadingIndicator();
-          }
-          final surgeries = snapshot.data!.docs;
-          return _buildSurgeriesList(surgeries);
-        },
+      body: Column(
+        children: [
+          // Seletor de filtro posicionado abaixo do AppBar
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedFilter,
+              items:
+                  ['todas', 'pendente', 'negada', 'confirmada'].map((status) {
+                return DropdownMenuItem<String>(
+                  value: status,
+                  child: Text(
+                    status == 'todas' ? 'Todas' : status.capitalize(),
+                  ),
+                );
+              }).toList(),
+              onChanged: (newValue) {
+                if (newValue != null) {
+                  setState(() => _selectedFilter = newValue);
+                }
+              },
+            ),
+          ),
+          // Lista de cirurgias
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _getSurgeriesStream(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return _buildErrorWidget('Erro ao carregar cirurgias');
+                }
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return _buildLoadingIndicator();
+                }
+                final surgeries = snapshot.data!.docs;
+                return _buildSurgeriesList(surgeries);
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: _buildAddSurgeryButton(context),
     );

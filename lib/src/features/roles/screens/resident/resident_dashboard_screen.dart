@@ -6,6 +6,12 @@ import 'package:cirurgiapp/src/core/models/user_model.dart';
 import 'package:cirurgiapp/src/services/auth_service.dart';
 import 'package:cirurgiapp/src/features/auth/screens/login_screen.dart';
 
+extension StringExtensions on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
+  }
+}
+
 class ResidentDashboardScreen extends StatefulWidget {
   final HospitalUser user;
   const ResidentDashboardScreen({Key? key, required this.user})
@@ -17,6 +23,9 @@ class ResidentDashboardScreen extends StatefulWidget {
 }
 
 class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  String _selectedFilter = 'todas';
+
   Future<void> _logout() async {
     await AuthService().signOut();
     if (!mounted) return;
@@ -24,6 +33,18 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
+  }
+
+  Stream<QuerySnapshot> _getSurgeriesStream() {
+    List<String> statusList = _selectedFilter == 'todas'
+        ? ['pendente', 'negada', 'confirmada']
+        : [_selectedFilter];
+    return _firestore
+        .collection('surgeries')
+        .where('status', whereIn: statusList)
+        .orderBy('dateTime', descending: true)
+        .where('requiredConfirmations', arrayContains: 'residente')
+        .snapshots();
   }
 
   Future<void> _updateResidentConfirmation(
@@ -52,7 +73,6 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
 
         bool anyDenied = requiredConfirmations.any((role) =>
             confirmations.containsKey(role) && confirmations[role] == false);
-
         bool allConfirmed = requiredConfirmations.every((role) =>
             confirmations.containsKey(role) && confirmations[role] == true);
 
@@ -79,7 +99,7 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
               newValue ? 'Pré-operatório confirmado!' : 'Confirmação removida'),
         ),
       );
-      setState(() {});
+      setState(() {}); // Atualiza a UI se necessário
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -104,11 +124,9 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
           title: Text(newValue
               ? 'Confirmar Pré-Operatório'
               : 'Desconfirmar Pré-Operatório'),
-          content: Text(
-            newValue
-                ? 'Confirmar que o pré-operatório foi realizado conforme protocolo?'
-                : 'Deseja retirar a confirmação do pré-operatório?',
-          ),
+          content: Text(newValue
+              ? 'Confirmar que o pré-operatório foi realizado conforme protocolo?'
+              : 'Deseja retirar a confirmação do pré-operatório?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
@@ -116,7 +134,6 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
             ),
             TextButton(
               onPressed: () async {
-                // Fecha o diálogo antes de iniciar a operação assíncrona
                 Navigator.pop(dialogContext);
                 await _updateResidentConfirmation(surgeryId, newValue);
               },
@@ -161,43 +178,68 @@ class _ResidentDashboardScreenState extends State<ResidentDashboardScreen> {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('surgeries')
-            .where('status', whereIn: ['pendente', 'negada', 'confirmada'])
-            .orderBy('dateTime', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          debugPrint(
-              'Dados recebidos: ${snapshot.data?.docs.length ?? 0} cirurgias');
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Erro: ${snapshot.error}',
-                style: const TextStyle(color: Colors.red),
-              ),
-            );
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('Nenhuma cirurgia pendente'));
-          }
-          final surgeries = snapshot.data!.docs;
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemCount: surgeries.length,
-            itemBuilder: (context, index) {
-              final doc = surgeries[index];
-              return _buildSurgeryCard(
-                doc.id,
-                doc.data() as Map<String, dynamic>,
-              );
-            },
-          );
-        },
+      body: Column(
+        children: [
+          // Seletor de filtro abaixo do AppBar
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedFilter,
+              items:
+                  ['todas', 'pendente', 'negada', 'confirmada'].map((status) {
+                return DropdownMenuItem<String>(
+                  value: status,
+                  child: Text(
+                    status == 'todas' ? 'Todas' : status.capitalize(),
+                  ),
+                );
+              }).toList(),
+              onChanged: (newValue) {
+                if (newValue != null) {
+                  setState(() => _selectedFilter = newValue);
+                }
+              },
+            ),
+          ),
+          // Lista de SurgeryCards
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _getSurgeriesStream(),
+              builder: (context, snapshot) {
+                debugPrint(
+                    'Dados recebidos: ${snapshot.data?.docs.length ?? 0} cirurgias');
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Erro: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  );
+                }
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('Nenhuma cirurgia pendente'));
+                }
+                final surgeries = snapshot.data!.docs;
+                return ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemCount: surgeries.length,
+                  itemBuilder: (context, index) {
+                    final doc = surgeries[index];
+                    return _buildSurgeryCard(
+                      doc.id,
+                      doc.data() as Map<String, dynamic>,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

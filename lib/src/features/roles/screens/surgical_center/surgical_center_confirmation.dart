@@ -5,7 +5,13 @@ import 'package:cirurgiapp/src/components/style_constants/typography.dart';
 import 'package:cirurgiapp/src/core/models/user_model.dart';
 import 'package:cirurgiapp/src/features/surgery/widgets/surgery_card.dart';
 
-class SurgicalCenterConfirmationScreen extends StatelessWidget {
+extension StringExtensions on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
+  }
+}
+
+class SurgicalCenterConfirmationScreen extends StatefulWidget {
   final HospitalUser user;
 
   const SurgicalCenterConfirmationScreen({
@@ -13,12 +19,26 @@ class SurgicalCenterConfirmationScreen extends StatelessWidget {
     required this.user,
   }) : super(key: key);
 
-  // Stream para obter as cirurgias pendentes
-  Stream<QuerySnapshot> get _surgeriesStream => FirebaseFirestore.instance
-      .collection('surgeries')
-      .where('status', whereIn: ['pendente', 'negada', 'confirmada'])
-      .where('requiredConfirmations', arrayContains: 'centro_cirurgico')
-      .snapshots();
+  @override
+  State<SurgicalCenterConfirmationScreen> createState() =>
+      _SurgicalCenterConfirmationScreenState();
+}
+
+class _SurgicalCenterConfirmationScreenState
+    extends State<SurgicalCenterConfirmationScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  String _selectedFilter = 'todas';
+
+  Stream<QuerySnapshot> _getSurgeriesStream() {
+    List<String> statusList = _selectedFilter == 'todas'
+        ? ['pendente', 'negada', 'confirmada']
+        : [_selectedFilter];
+    return _firestore
+        .collection('surgeries')
+        .where('status', whereIn: statusList)
+        .where('requiredConfirmations', arrayContains: 'centro_cirurgico')
+        .snapshots();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,48 +63,79 @@ class SurgicalCenterConfirmationScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _surgeriesStream,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(child: Text('Erro ao carregar cirurgias'));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final surgeries = snapshot.data!.docs;
-          if (surgeries.isEmpty) {
-            return Center(
-              child: Text(
-                'Nenhuma cirurgia pendente',
-                style: H2(textColor: core_colors.AppColors.onSurface),
-              ),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: surgeries.length,
-            itemBuilder: (context, index) {
-              final doc = surgeries[index];
-              final surgery = doc.data() as Map<String, dynamic>;
-              return SurgeryCard(
-                surgeryId: doc.id,
-                surgery: surgery,
-                userRole: 'Centro Cirúrgico',
-                canConfirm: true,
-                onConfirm: () =>
-                    _handleSurgicalCenterConfirmation(doc.id, surgery, context),
-              );
-            },
-          );
-        },
+      body: Column(
+        children: [
+          // Seletor de filtro logo abaixo do AppBar
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: DropdownButton<String>(
+              value: _selectedFilter,
+              isExpanded: true,
+              items:
+                  ['todas', 'pendente', 'negada', 'confirmada'].map((status) {
+                return DropdownMenuItem<String>(
+                  value: status,
+                  child: Text(
+                    status == 'todas' ? 'Todas' : status.capitalize(),
+                  ),
+                );
+              }).toList(),
+              onChanged: (newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedFilter = newValue;
+                  });
+                }
+              },
+            ),
+          ),
+          // StreamBuilder com os cartões de cirurgia
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _getSurgeriesStream(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Center(
+                      child: Text('Erro ao carregar cirurgias'));
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final surgeries = snapshot.data!.docs;
+                if (surgeries.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Nenhuma cirurgia pendente',
+                      style: H2(textColor: core_colors.AppColors.onSurface),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: surgeries.length,
+                  itemBuilder: (context, index) {
+                    final doc = surgeries[index];
+                    final surgery = doc.data() as Map<String, dynamic>;
+                    return SurgeryCard(
+                      surgeryId: doc.id,
+                      surgery: surgery,
+                      userRole: 'Centro Cirúrgico',
+                      canConfirm: true,
+                      onConfirm: () => _handleSurgicalCenterConfirmation(
+                          doc.id, surgery, context),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
   void _handleSurgicalCenterConfirmation(
       String surgeryId, Map<String, dynamic> surgery, BuildContext context) {
-    // Inicializa as variáveis a partir dos dados da cirurgia
     bool isConfirmed = surgery['confirmations']?['centro_cirurgico'] ?? false;
     String? selectedRoom = surgery['surgeryRoom'];
 

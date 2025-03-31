@@ -6,6 +6,12 @@ import 'package:cirurgiapp/src/components/style_constants/typography.dart';
 import 'package:cirurgiapp/src/core/models/user_model.dart';
 import 'package:cirurgiapp/src/features/surgery/widgets/surgery_card.dart';
 
+extension StringExtensions on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
+  }
+}
+
 class UTIConfirmationScreen extends StatefulWidget {
   final HospitalUser user;
 
@@ -20,12 +26,20 @@ class UTIConfirmationScreen extends StatefulWidget {
 
 class _UTIConfirmationScreenState extends State<UTIConfirmationScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  String _selectedFilter = 'todas';
 
-  Stream<QuerySnapshot> get _surgeriesStream => _firestore
-      .collection('surgeries')
-      .where('status', whereIn: ['pendente', 'negada', 'confirmada'])
-      .where('needsICU', isEqualTo: true)
-      .snapshots();
+  Stream<QuerySnapshot> _getSurgeriesStream() {
+    List<String> statusList = _selectedFilter == 'todas'
+        ? ['pendente', 'negada', 'confirmada']
+        : [_selectedFilter];
+
+    return _firestore
+        .collection('surgeries')
+        .where('status', whereIn: statusList)
+        .where('requiredConfirmations',
+            arrayContains: 'uti') // Ajustado para UTI
+        .snapshots();
+  }
 
   Future<void> _confirmUTI(String surgeryId, bool confirmed) async {
     try {
@@ -61,8 +75,7 @@ class _UTIConfirmationScreenState extends State<UTIConfirmationScreen> {
         } else if (allConfirmed) {
           newStatus = 'confirmada';
         } else {
-          newStatus =
-              'pendente'; // Mantém como pendente se faltar alguma confirmação
+          newStatus = 'pendente';
         }
 
         final updateData = {
@@ -80,48 +93,6 @@ class _UTIConfirmationScreenState extends State<UTIConfirmationScreen> {
         );
       }
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('UTI'),
-        backgroundColor: core_colors.AppColors.primary,
-        foregroundColor: core_colors.AppColors.onPrimary,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                context, '/login', (route) => false),
-          ),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _surgeriesStream,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return _buildErrorWidget();
-          if (!snapshot.hasData) return _buildLoadingIndicator();
-
-          final surgeries = snapshot.data!.docs;
-          if (surgeries.isEmpty) return _buildEmptyListWidget();
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: surgeries.length,
-            itemBuilder: (context, index) {
-              final doc = surgeries[index];
-              final surgery = doc.data() as Map<String, dynamic>;
-              return _buildSurgeryCard(doc.id, surgery);
-            },
-          );
-        },
-      ),
-    );
   }
 
   Widget _buildSurgeryCard(String surgeryId, Map<String, dynamic> surgery) {
@@ -177,4 +148,75 @@ class _UTIConfirmationScreenState extends State<UTIConfirmationScreen> {
           style: H2(textColor: core_colors.AppColors.onSurface),
         ),
       );
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('UTI'),
+        backgroundColor: core_colors.AppColors.primary,
+        foregroundColor: core_colors.AppColors.onPrimary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                context, '/login', (route) => false),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Seletor de filtro logo abaixo do AppBar
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedFilter,
+              items:
+                  ['todas', 'pendente', 'negada', 'confirmada'].map((status) {
+                return DropdownMenuItem<String>(
+                  value: status,
+                  child: Text(
+                    status == 'todas' ? 'Todas' : status.capitalize(),
+                  ),
+                );
+              }).toList(),
+              onChanged: (newValue) {
+                if (newValue != null) {
+                  setState(() => _selectedFilter = newValue);
+                }
+              },
+            ),
+          ),
+          // Lista de SurgeryCards
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _getSurgeriesStream(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return _buildErrorWidget();
+                if (!snapshot.hasData) return _buildLoadingIndicator();
+
+                final surgeries = snapshot.data!.docs;
+                if (surgeries.isEmpty) return _buildEmptyListWidget();
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: surgeries.length,
+                  itemBuilder: (context, index) {
+                    final doc = surgeries[index];
+                    final surgery = doc.data() as Map<String, dynamic>;
+                    return _buildSurgeryCard(doc.id, surgery);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
