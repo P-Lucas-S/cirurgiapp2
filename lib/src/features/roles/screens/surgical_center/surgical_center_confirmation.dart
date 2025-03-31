@@ -71,8 +71,98 @@ class SurgicalCenterConfirmationScreen extends StatelessWidget {
                 surgery: surgery,
                 userRole: 'Centro Cirúrgico',
                 canConfirm: true,
+                onConfirm: () =>
+                    _handleSurgicalCenterConfirmation(doc.id, surgery, context),
               );
             },
+          );
+        },
+      ),
+    );
+  }
+
+  void _handleSurgicalCenterConfirmation(
+      String surgeryId, Map<String, dynamic> surgery, BuildContext context) {
+    // Declara as variáveis fora do builder para que sejam persistentes
+    bool isConfirmed = surgery['confirmations']?['centro_cirurgico'] ?? false;
+    String? selectedRoom = surgery['surgeryRoom'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Confirmar Centro Cirúrgico'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile(
+                  title: const Text('Confirmar Cirurgia'),
+                  value: isConfirmed,
+                  activeColor: core_colors.AppColors.primary,
+                  onChanged: (value) => setState(() => isConfirmed = value),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedRoom,
+                  decoration: InputDecoration(
+                    labelText: 'Selecionar Sala',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Sala 1', child: Text('Sala 1')),
+                    DropdownMenuItem(value: 'Sala 2', child: Text('Sala 2')),
+                    DropdownMenuItem(value: 'Sala 3', child: Text('Sala 3')),
+                    DropdownMenuItem(value: 'Sala 4', child: Text('Sala 4')),
+                  ],
+                  onChanged: (value) => setState(() => selectedRoom = value),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: core_colors.AppColors.primary,
+                ),
+                onPressed: () async {
+                  try {
+                    // Atualizar confirmação
+                    await FirebaseFirestore.instance
+                        .collection('surgeries')
+                        .doc(surgeryId)
+                        .update({
+                      'confirmations.centro_cirurgico': isConfirmed,
+                      'status': isConfirmed ? 'confirmada' : 'negada',
+                    });
+
+                    // Atualizar sala se selecionada
+                    if (selectedRoom != null) {
+                      await FirebaseFirestore.instance
+                          .collection('surgeries')
+                          .doc(surgeryId)
+                          .update({'surgeryRoom': selectedRoom});
+                    }
+
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  } catch (e) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        SnackBar(content: Text('Erro: ${e.toString()}')),
+                      );
+                    }
+                  }
+                },
+                child:
+                    const Text('Salvar', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           );
         },
       ),
