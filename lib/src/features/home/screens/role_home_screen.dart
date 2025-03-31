@@ -10,12 +10,11 @@ import 'package:cirurgiapp/src/features/roles/screens/opme/opme_confirmation_scr
 class ResidentDashboardScreen extends StatelessWidget {
   final HospitalUser user;
 
-  const ResidentDashboardScreen({Key? key, required this.user})
-      : super(key: key);
+  const ResidentDashboardScreen({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
-    return Center(child: Text('Dashboard do Residente de Cirurgia'));
+    return const Center(child: Text('Dashboard do Residente de Cirurgia'));
   }
 }
 
@@ -23,11 +22,7 @@ class RoleHomeScreen extends StatefulWidget {
   final String role;
   final HospitalUser user;
 
-  const RoleHomeScreen({
-    Key? key,
-    required this.role,
-    required this.user,
-  }) : super(key: key);
+  const RoleHomeScreen({super.key, required this.role, required this.user});
 
   @override
   State<RoleHomeScreen> createState() => _RoleHomeScreenState();
@@ -45,7 +40,8 @@ class _RoleHomeScreenState extends State<RoleHomeScreen> {
   }
 
   Widget _buildRoleSpecificContent() {
-    bool hasRole = widget.user.roles?.contains(widget.role) ?? false;
+    // Removido o operador null-aware, pois roles não é nulo.
+    bool hasRole = widget.user.roles.contains(widget.role);
 
     if (!hasRole) {
       return const Center(child: Text('Acesso não autorizado para este cargo'));

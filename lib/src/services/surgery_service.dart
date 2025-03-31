@@ -68,16 +68,6 @@ class SurgeryService {
     await _firestore.collection('surgeries').doc(surgeryId).update(updateData);
   }
 
-  Map<String, bool> _initConfirmations() {
-    return {
-      // 'residente': false,
-      // 'centro_cirurgico': false,
-      // 'banco_sangue': false,
-      // 'uti': false,
-      // 'material_hospitalar': false,
-    };
-  }
-
   Map<String, dynamic> _initTimestamps() {
     final now = FieldValue.serverTimestamp();
     return {

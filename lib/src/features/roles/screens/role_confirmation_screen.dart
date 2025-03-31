@@ -37,9 +37,10 @@ class RoleConfirmationScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(surgery['patientName'],
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              surgery['patientName'],
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Text('Procedimento: ${surgery['procedureName']}'),
             const SizedBox(height: 8),
@@ -66,8 +67,7 @@ class RoleConfirmationScreen extends StatelessWidget {
       title: Text('Confirmar $roleKey'),
       value: (confirmations[field] ?? false), // Default para false
       onChanged: (value) async {
-        await service.confirmRequirement(
-            docId, field, user.uid, value ?? false);
+        await service.confirmRequirement(docId, field, user.uid, value);
       },
     );
   }
@@ -109,7 +109,7 @@ class RoleConfirmationScreen extends StatelessWidget {
         actions: [
           IconButton(
               icon: const Icon(Icons.logout),
-              onPressed: () => AuthService().signOut())
+              onPressed: () => AuthService().signOut()),
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -120,11 +120,12 @@ class RoleConfirmationScreen extends StatelessWidget {
                 isEqualTo: false) // Filtro adicional
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError)
+          if (snapshot.hasError) {
             return const Center(child: Text('Erro ao carregar dados'));
-          if (!snapshot.hasData)
+          }
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
-
+          }
           return ListView.builder(
             itemCount: snapshot.data!.docs.length,
             itemBuilder: (context, index) {
@@ -132,13 +133,12 @@ class RoleConfirmationScreen extends StatelessWidget {
               return FutureBuilder<DocumentSnapshot>(
                 future: (doc['procedure'] as DocumentReference).get(),
                 builder: (context, procedureSnapshot) {
-                  if (!procedureSnapshot.hasData)
+                  if (!procedureSnapshot.hasData) {
                     return const SizedBox.shrink();
-
+                  }
                   final surgeryData = doc.data() as Map<String, dynamic>;
                   surgeryData['procedureName'] =
                       procedureSnapshot.data!['name'];
-
                   return _buildConfirmationUI(surgeryData, doc.id);
                 },
               );

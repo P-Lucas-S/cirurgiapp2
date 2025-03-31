@@ -32,8 +32,8 @@ class SurgeryCard extends StatelessWidget {
     required this.surgeryId,
     required this.surgery,
     required this.userRole,
-    required this.canConfirm,
-    this.canCancel = false,
+    this.canConfirm = false,
+    this.canCancel = false, // Nova propriedade
     this.onConfirm,
   });
 
@@ -50,13 +50,36 @@ class SurgeryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildCardContent(context),
-              if (canConfirm)
+              // Conteúdo superior do card (mantido igual)
+              Row(
+                children: [
+                  _buildStatusIcon(),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildSurgeryInfo(context)),
+                  // Ícone de cancelamento removido daqui
+                ],
+              ),
+              // Botões inferiores
+              if (canConfirm || canCancel)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
-                  child: ElevatedButton(
-                    onPressed: onConfirm,
-                    child: const Text('Confirmar'),
+                  child: Column(
+                    children: [
+                      if (canConfirm)
+                        ElevatedButton(
+                          onPressed: onConfirm,
+                          child: const Text('Confirmar'),
+                        ),
+                      if (canCancel)
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.error,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () => _confirmCancellation(context),
+                          child: const Text('Cancelar Cirurgia'),
+                        ),
+                    ],
                   ),
                 ),
             ],
@@ -67,15 +90,8 @@ class SurgeryCard extends StatelessWidget {
   }
 
   Widget _buildCardContent(BuildContext context) {
-    return Row(
-      children: [
-        _buildStatusIcon(),
-        const SizedBox(width: 16),
-        Expanded(child: _buildSurgeryInfo(context)),
-        if (canCancel) _buildCancelButton(context),
-        if (canConfirm) _buildConfirmButton(context),
-      ],
-    );
+    // Método não mais utilizado, pois o conteúdo foi movido para o build.
+    return const SizedBox.shrink();
   }
 
   Widget _buildSurgeryInfo(BuildContext context) {
@@ -86,13 +102,6 @@ class SurgeryCard extends StatelessWidget {
         const SizedBox(height: 8),
         _buildSurgeryDetails(),
       ],
-    );
-  }
-
-  Widget _buildCancelButton(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.cancel, color: AppColors.error),
-      onPressed: () => _confirmCancellation(context),
     );
   }
 
@@ -223,13 +232,11 @@ class SurgeryCard extends StatelessWidget {
     );
   }
 
-  // Método auxiliar para retornar o valor da confirmação baseado na role
   bool getConfirmationValue(String roleKey) {
     final confirmations = surgery['confirmations'] ?? {};
     return (confirmations[roleKey] ?? false);
   }
 
-  // Retorna a chave de confirmação de acordo com a role do usuário
   String _getRoleKey() {
     return switch (userRole) {
       'Banco de Sangue' => 'banco_sangue',
@@ -239,48 +246,6 @@ class SurgeryCard extends StatelessWidget {
       'Centro de Material Hospitalar' => 'material_hospitalar',
       _ => '',
     };
-  }
-
-  // Método _buildConfirmButton refatorado utilizando os métodos auxiliares
-  Widget _buildConfirmButton(BuildContext context) {
-    if (!canConfirm) return const SizedBox.shrink();
-
-    final roleKey = _getRoleKey();
-    final isConfirmed = getConfirmationValue(roleKey);
-
-    switch (userRole) {
-      case 'Banco de Sangue':
-        return IconButton(
-          icon: _getConfirmationIcon(),
-          onPressed: () => _handleBloodBankConfirmation(context),
-        );
-      case 'Centro Cirúrgico':
-        return IconButton(
-          icon: Icon(
-            isConfirmed ? Icons.check_circle : Icons.meeting_room_outlined,
-            color: isConfirmed ? AppColors.success : AppColors.secondary,
-          ),
-          onPressed: () => _showSurgicalCenterDialog(context),
-        );
-      case 'Residente de Cirurgia':
-        return IconButton(
-          icon: Icon(
-            isConfirmed ? Icons.check_circle : Icons.pending_actions,
-            color: isConfirmed ? AppColors.success : AppColors.secondary,
-          ),
-          onPressed: () => _toggleResidentConfirmation(context),
-        );
-      case 'UTI':
-        return IconButton(
-          icon: Icon(
-            isConfirmed ? Icons.check_circle : Icons.emergency,
-            color: isConfirmed ? AppColors.success : AppColors.secondary,
-          ),
-          onPressed: onConfirm,
-        );
-      default:
-        return const SizedBox.shrink();
-    }
   }
 
   Icon _getConfirmationIcon() {
@@ -417,7 +382,6 @@ class SurgeryCard extends StatelessWidget {
     );
   }
 
-  // Método refatorado com sanitização dos dados
   void _navigateToDetails(BuildContext context) {
     // Criar cópia segura dos dados
     final safeSurgeryData = Map<String, dynamic>.from(surgery)
@@ -430,7 +394,7 @@ class SurgeryCard extends StatelessWidget {
       MaterialPageRoute(
         builder: (context) => SurgeryDetailsScreen(
           surgeryId: surgeryId,
-          surgeryData: safeSurgeryData, // Usar dados sanitizados
+          surgeryData: safeSurgeryData,
         ),
       ),
     );
@@ -489,7 +453,6 @@ class SurgeryCard extends StatelessWidget {
 
   String get _formattedStatus => _status.capitalize();
 
-  // Getter atualizado conforme as mudanças solicitadas
   String get _status {
     final status = (surgery['status'] as String? ?? 'pendente').toLowerCase();
     final confirmations = surgery['confirmations'] ?? {};
