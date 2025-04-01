@@ -134,7 +134,7 @@ class PdfService {
   String _getRoleName(String key) {
     return const {
           'residente': 'Pré-operatório',
-          'centro_cirurgico': 'OK',
+          'centro_cirurgico': 'Centro Cirurgico',
           'banco_sangue': 'Banco de Sangue',
           'uti': 'UTI',
           'material_hospitalar': 'Material',
