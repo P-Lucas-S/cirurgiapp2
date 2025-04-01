@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cirurgiapp/src/core/constants/app_colors.dart';
 import 'package:cirurgiapp/src/services/auth_service.dart';
+import 'package:cirurgiapp/src/services/pdf_service.dart';
 import 'package:cirurgiapp/src/features/auth/screens/login_screen.dart';
 import 'package:cirurgiapp/src/features/surgery/screens/create_surgery_screen.dart';
 import 'package:cirurgiapp/src/features/surgery/widgets/surgery_card.dart';
@@ -22,6 +23,7 @@ class NIRDashboardScreen extends StatefulWidget {
 class _NIRDashboardScreenState extends State<NIRDashboardScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String _selectedFilter = 'todas';
+  final PdfService _pdfService = PdfService();
 
   Stream<QuerySnapshot> _getSurgeriesStream() {
     List<String> statusList = _selectedFilter == 'todas'
@@ -61,6 +63,10 @@ class _NIRDashboardScreenState extends State<NIRDashboardScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            onPressed: () => _pdfService.generateDailySurgeriesPdf(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _logout(context),
           ),
@@ -74,15 +80,14 @@ class _NIRDashboardScreenState extends State<NIRDashboardScreen> {
             child: DropdownButton<String>(
               isExpanded: true,
               value: _selectedFilter,
-              items:
-                  ['todas', 'pendente', 'negada', 'confirmada'].map((status) {
-                return DropdownMenuItem<String>(
-                  value: status,
-                  child: Text(
-                    status == 'todas' ? 'Todas' : status.capitalize(),
-                  ),
-                );
-              }).toList(),
+              items: ['todas', 'pendente', 'negada', 'confirmada']
+                  .map((status) => DropdownMenuItem<String>(
+                        value: status,
+                        child: Text(
+                          status == 'todas' ? 'Todas' : status.capitalize(),
+                        ),
+                      ))
+                  .toList(),
               onChanged: (newValue) {
                 if (newValue != null) {
                   setState(() => _selectedFilter = newValue);
