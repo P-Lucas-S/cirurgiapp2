@@ -76,14 +76,28 @@ class SurgeryService {
     };
   }
 
-  Future<void> cancelSurgery(String surgeryId) async {
+  Future<void> cancelSurgery(String surgeryId,
+      {String? reason, Map<String, String>? denialReasons}) async {
     try {
-      await _firestore.collection('surgeries').doc(surgeryId).update({
+      final updateData = {
         'status': 'negada',
-        'timestamps.updatedAt': FieldValue.serverTimestamp(),
-      });
-    } on FirebaseException catch (e) {
-      _logger.e('Erro ao cancelar [${e.code}]: ${e.message}');
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (reason != null) {
+        updateData['denialReason'] = reason;
+      }
+
+      if (denialReasons != null) {
+        updateData['denialReasons'] = denialReasons;
+      }
+
+      await _firestore
+          .collection('surgeries')
+          .doc(surgeryId)
+          .update(updateData);
+    } catch (e) {
+      _logger.e('Erro ao cancelar cirurgia: $e');
       rethrow;
     }
   }
