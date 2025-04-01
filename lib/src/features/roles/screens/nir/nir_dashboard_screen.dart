@@ -63,10 +63,6 @@ class _NIRDashboardScreenState extends State<NIRDashboardScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            onPressed: () => _pdfService.generateDailySurgeriesPdf(context),
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _logout(context),
           ),
@@ -74,7 +70,6 @@ class _NIRDashboardScreenState extends State<NIRDashboardScreen> {
       ),
       body: Column(
         children: [
-          // Seletor de filtro posicionado abaixo do AppBar
           Padding(
             padding: const EdgeInsets.all(16),
             child: DropdownButton<String>(
@@ -113,7 +108,32 @@ class _NIRDashboardScreenState extends State<NIRDashboardScreen> {
           ),
         ],
       ),
-      floatingActionButton: _buildAddSurgeryButton(context),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: 'pdfButton',
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.onPrimary,
+            child: const Icon(Icons.picture_as_pdf),
+            onPressed: () => _pdfService.generateDailySurgeriesPdf(context),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: 'createSurgeryButton',
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.onPrimary,
+            child: const Icon(Icons.add),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const CreateSurgeryScreen(),
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -150,20 +170,6 @@ class _NIRDashboardScreenState extends State<NIRDashboardScreen> {
           canConfirm: false,
         );
       },
-    );
-  }
-
-  Widget _buildAddSurgeryButton(BuildContext context) {
-    return FloatingActionButton(
-      backgroundColor: AppColors.primary,
-      foregroundColor: AppColors.onPrimary,
-      child: const Icon(Icons.add),
-      onPressed: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const CreateSurgeryScreen(),
-        ),
-      ),
     );
   }
 }
